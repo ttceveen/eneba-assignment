@@ -101,3 +101,33 @@ npm run build
 Повторный deploy на Render выполняет пользователь после отправки изменений в GitHub. Здесь не выполнялись push, deploy, вход в Render или вызовы его API/CLI. Проверка исключает воспроизведённую причину EPERM; другие ограничения реальной платформы требуют проверки повторным deployment.
 
 Основание: [FrankenPHP — running with no capabilities](https://frankenphp.dev/docs/docker/#running-with-no-capabilities), [Linux capabilities: execve и bounding set](https://man7.org/linux/man-pages/man7/capabilities.7.html).
+
+## Исправление production CORS
+
+Безопасная HTTP-диагностика опубликованных приложений выявила две независимые причины:
+
+- JS bundle `https://eneba-assignment-phi.vercel.app/assets/index-BWOFwMqq.js` формировал fetch на `http://localhost:8000/api/health`. Нельзя определить по bundle, отсутствовала ли переменная при сборке или была задана локальным значением, но фактический адрес запроса подтверждён. Код использует VITE_API_BASE_URL, не VITE_API_URL.
+- GET `https://eneba-assignment-tpln.onrender.com/api/health` с Origin `https://eneba-assignment-phi.vercel.app` вернул 200 и JSON {"status":"ok","database":"connected"}, но Access-Control-Allow-Origin был `http://localhost:5173`. OPTIONS для того же origin вернул 204 с тем же неправильным allow-origin и только GET/OPTIONS, Content-Type/Accept. Редиректов или ошибки API в этих ответах не было. Значение переменной Render не читалось: подтверждена эффективная конфигурация по HTTP-заголовкам.
+
+В Laravel cors.php localhost сохранён отдельным разрешённым origin, FRONTEND_URL задаёт production-origin (fallback — конкретный Vercel-домен). Разрешены GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS и Content-Type/Accept/Authorization/X-Requested-With. CORS остаётся в стандартном Laravel middleware, без Caddy-заголовков или сторонних пакетов. supports_credentials=false: текущий fetch не использует cookies/credentials, авторизация и Sanctum пока не реализованы. CSRF и middleware безопасности не менялись. Будущая cookie-авторизация потребует отдельной настройки.
+
+Во frontend fallback localhost действует только при DEV. Если production API URL отсутствует, страница показывает ошибку конфигурации и не выполняет fetch к localhost. Формирование endpoint осталось: base URL с `/api` плюс `/health`, без повторного `/api`.
+
+**Действия пользователя:**
+
+| Платформа | Переменная | Точное значение |
+|---|---|---|
+| Render | FRONTEND_URL | https://eneba-assignment-phi.vercel.app |
+| Vercel | VITE_API_BASE_URL | https://eneba-assignment-tpln.onrender.com/api |
+
+Задайте значения без завершающего слеша. Настройка только VITE_API_URL не влияет на текущий код. Самостоятельно отправьте изменения в GitHub, обновите переменные нужного production-окружения и выполните deployment backend и **пересборку frontend**: Vite встраивает API URL при build. После этого повторите GET/OPTIONS с production Origin: allow-origin должен точно совпасть с Vercel origin; bundle не должен отправлять API-запрос на localhost. До этих действий опубликованные версии сохраняют диагностированные ошибки.
+
+**Локальная проверка:** отдельный PHPUnit-контейнер без исходных .env, реальных credentials, внешней БД или миграций — 8 tests, 91 assertions, --fail-on-warning успешно. Новый CorsTest проверяет production/local GET, preflight всех REST-методов и bearer-заголовков, запрещённый origin и CORS у 404/500. PHPUnit задаёт FRONTEND_URL только для тестов, чтобы результат не зависел от локальных переменных разработчика.
+
+Реальные GET/OPTIONS к отдельному временному FrankenPHP подтвердили 200/204, оба разрешённых origins, отсутствие allow-origin у постороннего origin и CORS для API 404. Тестовый API использовал SQLite in-memory SELECT 1, не PostgreSQL. Frontend собран в отдельном Node-контейнере из read-only копии: TypeScript/Vite и lint прошли, 0 предупреждений; bundle содержит правильный Render URL без localhost:8000 и /api/api. Chromium загрузил этот bundle с production frontend origin и получил успешный CORS-ответ от изолированного Laravel (API GET перенаправлен тестом локально); ошибок JavaScript нет. Это локальная проверка сборки, не повторный публичный deploy.
+
+Первый изолированный PHPUnit-прогон сообщил предупреждения об отсутствующем .env: исправлено созданием пустого .env только во временном контейнере. Предупреждение React о setState в effect устранено инициализацией состояния по наличию API URL. Исходные локальные .env не менялись.
+
+Development-контейнеры не пересоздавались, не перезапускались и не останавливались; ID/StartedAt/RestartCount и защищённые файлы совпали до/после, все healthy. Миграции не выполнялись, volumes и development-база не затрагивались. Временные контейнеры удалены. Настройки Render/Vercel/Neon не менялись; push, commit и deployment не выполнялись. История дополнена доступными сообщениями до времени экспорта, без перезаписи прежних записей; последующий финальный ответ в экспорт не входит.
+
+Дополнительный прогон с унаследованным FRONTEND_URL=http://localhost:5173 выявил приоритет $_SERVER над PHPUnit env-настройкой. Тестовый origin теперь задаётся через PHPUnit server force=true; повторный строгий прогон прошёл: 8 tests, 91 assertions. Это изменение только тестовой конфигурации.
