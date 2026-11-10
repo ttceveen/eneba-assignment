@@ -1,0 +1,29 @@
+FROM dunglas/frankenphp:1-php8.4-bookworm AS php-base
+RUN install-php-extensions pdo_pgsql intl zip bcmath opcache
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && printf '%s\n' 'expose_php=Off' 'display_errors=Off' 'log_errors=On' 'error_log=/proc/self/fd/2' 'opcache.enable=1' 'opcache.validate_timestamps=0' > "$PHP_INI_DIR/conf.d/production.ini"
+WORKDIR /app
+ENV APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr LOG_LEVEL=info \
+    DB_CONNECTION=pgsql SESSION_DRIVER=file CACHE_STORE=file QUEUE_CONNECTION=sync \
+    PORT=10000
+
+FROM php-base AS dependencies
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY . .
+RUN composer install --no-dev --no-scripts --prefer-dist --no-interaction --optimize-autoloader \
+    && composer remove laravel/tinker --update-no-dev --no-scripts --no-interaction --minimal-changes \
+    && php artisan package:discover --ansi
+
+FROM php-base AS production
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY --from=dependencies /app /app
+COPY production/Caddyfile /etc/frankenphp/Caddyfile
+COPY --chmod=755 production/entrypoint.sh /usr/local/bin/production-entrypoint
+RUN chmod -R go-w /app \
+    && useradd --create-home --uid 1000 app \
+    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache /config/caddy /data/caddy \
+    && chown -R app:app storage bootstrap/cache /config/caddy /data/caddy
+USER app
+EXPOSE 10000
+ENTRYPOINT ["production-entrypoint"]
+CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile", "--adapter", "caddyfile"]
