@@ -83,3 +83,21 @@ npm run build
 Проверки обнаружили и помогли исправить: неверный флаг Composer remove (заменён на --update-no-dev), унаследованную запись в исходники из Windows (убрана внутри образа), запрет исполнения на временном tmpfs frontend-проверки (использован exec только для этого tmpfs). Существующие Dockerfile/Compose, .env, исходники frontend и Composer-файлы разработки не изменены; хэши проверены. ID dev-контейнеров, время запуска и RestartCount совпали до/после; все три healthy. Временные контейнеры и сеть теста удалены, тома development не затрагивались.
 
 История запросов, ответов, ошибок и исправлений добавлена в `ai-session.md` без перезаписи прежних записей и без секретов. Экспорт охватывает доступные записи до указанного в дополнении времени; будущий финальный ответ туда не входит.
+
+## Исправление Render: exec frankenphp / Operation not permitted
+
+В базовом образе `dunglas/frankenphp:1-php8.4-bookworm` исполняемый файл имеет mode 0755, owner root:root и file capability `cap_net_bind_service=ep`. До исправления штатные production ENTRYPOINT/CMD при `docker run --rm --cap-drop=ALL eneba-backend-prod` воспроизвели точный текст `/usr/local/bin/docker-php-entrypoint: 9: exec: frankenphp: Operation not permitted` и код 126. Это отказ Linux exec из-за file capabilities, отсутствующих в bounding set, а не отсутствие бита исполнения или прав на storage. Механизм подтверждён локально; фактические настройки безопасности Render не инспектировались.
+
+В финальную стадию Dockerfile перед USER app добавлен `setcap -r /usr/local/bin/frankenphp`. Для PORT=10000 и других непривилегированных портов (>=1024) эта capability не нужна. Права 0755, USER app (UID 1000), production ENTRYPOINT/CMD, конфигурация HTTP и PostgreSQL оставлены прежними. Новых зависимостей, сервисов или привилегий не добавлено.
+
+Проверено после сборки `docker build -f backend/Dockerfile.prod -t eneba-backend-prod ./backend`:
+
+- Запуск штатными ENTRYPOINT/CMD с `--cap-drop=ALL --security-opt no-new-privileges=true` прошёл; PID 1 — frankenphp, UID 1000, все Cap* равны 0, NoNewPrivs=1. `getcap /usr/local/bin/frankenphp` пуст, mode 0755.
+- PORT=18083, отдельный host-порт 18082: `/`, `/up`, `/api/health`, `/robots.txt` — 200; `/api/missing` и `/.env` — 404.
+- Отдельный локальный PostgreSQL 17: подключение Laravel с sslmode=require/channel_binding=require прошло по TLS 1.3; права storage/bootstrap/cache корректны, запись в исходники запрещена. Development-база не использовалась.
+- SIGTERM: shutdown complete, exit code 0, OOMKilled=false. Временные контейнеры и сеть удалены.
+- Хэши Compose, development Dockerfile/entrypoint, локальных .env и связанных production-конфигураций не изменились. Development-контейнеры сохранили ID, StartedAt, RestartCount и состояние healthy. Пользовательские staged изменения не затрагивались.
+
+Повторный deploy на Render выполняет пользователь после отправки изменений в GitHub. Здесь не выполнялись push, deploy, вход в Render или вызовы его API/CLI. Проверка исключает воспроизведённую причину EPERM; другие ограничения реальной платформы требуют проверки повторным deployment.
+
+Основание: [FrankenPHP — running with no capabilities](https://frankenphp.dev/docs/docker/#running-with-no-capabilities), [Linux capabilities: execve и bounding set](https://man7.org/linux/man-pages/man7/capabilities.7.html).

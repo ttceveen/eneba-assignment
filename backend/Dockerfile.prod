@@ -19,7 +19,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY --from=dependencies /app /app
 COPY production/Caddyfile /etc/frankenphp/Caddyfile
 COPY --chmod=755 production/entrypoint.sh /usr/local/bin/production-entrypoint
-RUN chmod -R go-w /app \
+# High PORT needs no privileged bind capability; restricted runtimes reject it.
+RUN setcap -r /usr/local/bin/frankenphp \
+    && chmod -R go-w /app \
     && useradd --create-home --uid 1000 app \
     && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache /config/caddy /data/caddy \
     && chown -R app:app storage bootstrap/cache /config/caddy /data/caddy
