@@ -1,0 +1,54 @@
+PROJECT: Eneba Marketplace
+DEADLINE: 5 days
+ARCHITECTURE: Modular Monolith
+
+BACKEND
+- PHP 8.4
+- Laravel
+- REST API (JSON)
+- Composer
+- PHPUnit
+
+FRONTEND
+- React
+- TypeScript
+- Vite
+- React Router
+- CSS Modules
+
+DATABASE
+- PostgreSQL
+- Laravel Eloquent ORM
+- Laravel Migrations
+
+AUTHENTICATION
+- Laravel Sanctum
+- Laravel Socialite
+- Google OAuth 2.0
+- Email / Password
+
+PAYMENTS
+- PayPal REST API
+- PayPal Sandbox
+
+DEVELOPMENT
+- Docker
+- Docker Compose
+- Git
+- GitHub
+
+DEPLOYMENT
+- Render (Backend)
+- Vercel (Frontend)
+- Neon (PostgreSQL)
+
+PRINCIPLES
+- OOP
+- SOLID (pragmatic)
+- KISS
+- YAGNI
+- API-first
+- Backend as source of truth
+- No hardcoded business data on frontend
+- Security by design
+- Extensible payment architecture
