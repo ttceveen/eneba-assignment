@@ -10,7 +10,7 @@ class GameController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        return GameResource::collection(Game::all(['id', 'name', 'location', 'img']));
+        return GameResource::collection(Game::query()->orderBy('id')->paginate(12, ['id', 'name', 'location', 'img']));
     }
 
     public function show(Game $game): GameResource
