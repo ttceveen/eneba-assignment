@@ -12,4 +12,9 @@ class GameController extends Controller
     {
         return GameResource::collection(Game::all(['id', 'name', 'location', 'img']));
     }
+
+    public function show(Game $game): GameResource
+    {
+        return new GameResource($game);
+    }
 }

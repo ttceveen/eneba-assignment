@@ -11,3 +11,5 @@ Route::get('/health', function () {
 });
 
 Route::get('/games', [GameController::class, 'index']);
+
+Route::get('/games/{game}', [GameController::class, 'show'])->whereNumber('game');

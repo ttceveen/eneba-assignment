@@ -1,0 +1,5 @@
+.footer { border-top: 1px solid rgb(255 255 255 / 12%); background: #351183; color: #c5b1f1; }
+.footer > div { width: min(1200px, calc(100% - 64px)); margin-inline: auto; padding-block: 27px; font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) {
+  .footer > div { width: calc(100% - 40px); padding-block: 24px; }
+}
