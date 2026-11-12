@@ -58,7 +58,7 @@ function GameContent({ id }: { id: string }) {
                       <span className={styles.seller}>{offer.seller.name}</span>
                       <span className={styles.offerPrice}>{new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(offer.price))}</span>
                       <span className={styles.quantity}>Доступно: {offer.quantity}</span>
-                      <AddToCartButton offer={offer} gameId={state.game.id} />
+                      <AddToCartButton offer={offer} />
                     </li>
                   ))}
                 </ul>

@@ -126,3 +126,30 @@ export async function getSearchPreview(query: string, signal: AbortSignal): Prom
   }
   return payload as SearchPreview
 }
+
+export type CartApiOffer = Omit<Offer, 'quantity'> & {
+  game: Pick<Game, 'id' | 'name' | 'img'>
+  currency: 'EUR'
+  quantity: number
+  available: boolean
+}
+
+export async function getOffers(ids: number[], signal: AbortSignal): Promise<CartApiOffer[]> {
+  signal.throwIfAborted()
+  const unique = [...new Set(ids)]
+  if (!unique.length) return []
+  if (unique.length > 100 || !unique.every(isPositiveInteger)) throw new Error('Invalid offer IDs (maximum 100)')
+  const response = await getResponse(`/offers?${new URLSearchParams({ ids: unique.join(',') })}`, signal)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const payload: unknown = await response.json()
+  if (!isRecord(payload) || !Array.isArray(payload.data) || !payload.data.every((value: unknown) =>
+    isRecord(value) && isOffer({ ...value, quantity: 1 })
+    && isRecord(value.game) && isPositiveInteger(value.game.id) && typeof value.game.name === 'string'
+    && (value.game.img === null || typeof value.game.img === 'string')
+    && value.currency === 'EUR' && typeof value.available === 'boolean'
+    && typeof value.quantity === 'number' && Number.isSafeInteger(value.quantity) && value.quantity >= 0
+    && (!value.available || value.quantity > 0)
+    && unique.includes(value.id as number))) throw new Error('Invalid offers response')
+  if (new Set(payload.data.map((value) => value.id)).size !== payload.data.length) throw new Error('Duplicate offers response')
+  return payload.data as CartApiOffer[]
+}

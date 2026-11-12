@@ -8,8 +8,6 @@ export default function CartProvider({ children }: { children: ReactNode }) {
     try { return parseCart(localStorage.getItem(CART_STORAGE_KEY)) } catch { return [] }
   })
   const [storageError, setStorageError] = useState(false)
-  // Routing hints only, never persisted. Prices and stock are always read from the API.
-  const hints = useRef(new Map<number, number>())
   const knownStock = useRef(new Map<number, number>())
 
   // Report the outcome of external storage I/O; this is not derivable from render data.
@@ -33,8 +31,7 @@ export default function CartProvider({ children }: { children: ReactNode }) {
     return () => removeEventListener('storage', restore)
   }, [])
 
-  const addItem = useCallback((offerId: number, stock: number, gameId: number) => {
-    hints.current.set(offerId, gameId)
+  const addItem = useCallback((offerId: number, stock: number) => {
     knownStock.current.set(offerId, stock)
     setItems((current) => addCartItem(current, offerId, stock))
   }, [])
@@ -47,14 +44,16 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   const rememberGame = useCallback((game: Game) => {
     const stock = new Map((game.offers ?? []).map((offer) => [offer.id, offer.quantity]))
     for (const offer of game.offers ?? []) {
-      hints.current.set(offer.id, game.id)
       knownStock.current.set(offer.id, offer.quantity)
     }
     setItems((current) => limitCartQuantities(current, stock))
   }, [])
-  const getGameHints = useCallback(() => new Map(hints.current), [])
-  const value = useMemo(() => ({ items, storageError, addItem, setQuantity, removeItem, rememberGame, getGameHints }),
-    [items, storageError, addItem, setQuantity, removeItem, rememberGame, getGameHints])
+  const rememberStock = useCallback((stock: ReadonlyMap<number, number>) => {
+    for (const [id, quantity] of stock) knownStock.current.set(id, quantity)
+    setItems((current) => limitCartQuantities(current, stock))
+  }, [])
+  const value = useMemo(() => ({ items, storageError, addItem, setQuantity, removeItem, rememberGame, rememberStock }),
+    [items, storageError, addItem, setQuantity, removeItem, rememberGame, rememberStock])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

@@ -10,7 +10,7 @@ type CartData = { key: string; status: 'loading' | 'error' }
   | { key: string; status: 'ready'; offers: Map<number, CartOffer> }
 
 export default function Cart() {
-  const { items, storageError, setQuantity, removeItem, rememberGame, getGameHints } = useCart()
+  const { items, storageError, setQuantity, removeItem, rememberStock } = useCart()
   const [revision, setRevision] = useState(0)
   const ids = items.map((item) => item.offerId).sort((a, b) => a - b).join(',')
   const requestKey = `${ids}:${revision}`
@@ -29,10 +29,10 @@ export default function Cart() {
     if (!ids) return
     const controller = new AbortController()
     const offerIds = ids.split(',').map(Number)
-    resolveCartOffers(offerIds, getGameHints(), controller.signal)
+    resolveCartOffers(offerIds, controller.signal)
       .then((resolved) => {
         if (controller.signal.aborted) return
-        for (const game of new Set([...resolved.values()].map((detail) => detail.game))) rememberGame(game)
+        rememberStock(new Map([...resolved].map(([id, detail]) => [id, detail.offer.quantity])))
         setData({ key: requestKey, status: 'ready', offers: resolved })
       })
       .catch(() => {
@@ -42,7 +42,7 @@ export default function Cart() {
         }
       })
     return () => controller.abort()
-  }, [ids, requestKey, getGameHints, rememberGame])
+  }, [ids, requestKey, rememberStock])
 
   return (
     <main className={styles.main}>
