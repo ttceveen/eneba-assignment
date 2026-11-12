@@ -12,14 +12,19 @@ async function getResponse(path: string, signal: AbortSignal): Promise<Response>
   return fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, { signal })
 }
 
+export type CatalogSort = 'popular' | 'alphabetical'
+
 export type GamesPage = {
   data: Game[]
   links: { first: string; last: string; prev: string | null; next: string | null }
   meta: { current_page: number; last_page: number; per_page: number; total: number }
 }
 
-export async function getGames(page: number, signal: AbortSignal): Promise<GamesPage> {
-  const response = await getResponse(`/games?page=${page}`, signal)
+export async function getGames(page: number, sort: CatalogSort, signal: AbortSignal): Promise<GamesPage> {
+  const query = new URLSearchParams()
+  if (sort === 'alphabetical') query.set('sort', sort)
+  query.set('page', String(page))
+  const response = await getResponse(`/games?${query}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
   const payload: GamesPage = await response.json()

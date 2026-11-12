@@ -1,7 +1,9 @@
-import { Link, NavLink } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import styles from './Header.module.css'
 
 export default function Header() {
+  const { pathname, search } = useLocation()
+  const alphabetical = new URLSearchParams(search).get('sort') === 'alphabetical'
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
@@ -32,7 +34,8 @@ export default function Header() {
       </div>
       <nav className={styles.navigation} aria-label="Main navigation">
         <div className={styles.navInner}>
-          <NavLink to="/" end>Games</NavLink>
+          <Link to="/" aria-current={pathname === '/' && !alphabetical ? 'page' : undefined}>Games</Link>
+          <Link to="/?sort=alphabetical" aria-current={pathname === '/' && alphabetical ? 'page' : undefined}>All Games</Link>
         </div>
       </nav>
     </header>
