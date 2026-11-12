@@ -12,7 +12,7 @@ type GameCardProps = {
 
 export default function GameCard({ id, name, location, img, price }: GameCardProps) {
   return (
-    <article className={styles.card}>
+    <article className={styles.card} data-game-id={id}>
       <Link className={styles.link} to={`/games/${id}`} aria-label={name}>
         <GameCover name={name} img={img} />
         <div className={styles.details}>

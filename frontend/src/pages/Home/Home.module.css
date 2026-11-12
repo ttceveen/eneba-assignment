@@ -13,3 +13,5 @@
 .pagination button:not(:disabled):hover { border-color: #fad318; }
 .pagination button:focus-visible { outline: 2px solid #fad318; outline-offset: 3px; }
 .pagination button:disabled { color: #b3aac9; opacity: 0.5; cursor: not-allowed; }
+
+.restoringStatus { position: sticky; top: 16px; }

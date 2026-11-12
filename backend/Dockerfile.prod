@@ -11,7 +11,6 @@ FROM php-base AS dependencies
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY . .
 RUN composer install --no-dev --no-scripts --prefer-dist --no-interaction --optimize-autoloader \
-    && composer remove laravel/tinker --update-no-dev --no-scripts --no-interaction --minimal-changes \
     && php artisan package:discover --ansi
 
 FROM php-base AS production
