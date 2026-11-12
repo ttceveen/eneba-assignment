@@ -49,7 +49,8 @@ class GameSearchController extends Controller
         $prefix = $literal.'%';
         $contains = '%'.$literal.'%';
 
-        return Game::query()->where('games.is_active', true)
+        return Game::query()->select(['games.id', 'games.name', 'games.location', 'games.img'])
+            ->where('games.is_active', true)->withOfferSummary()
             ->whereRaw("(games.name ILIKE ? ESCAPE '!' OR word_similarity(LOWER(?), LOWER(games.name)) >= ?)", [$contains, $query, 0.45])
             ->orderByRaw("CASE WHEN LOWER(games.name) = LOWER(?) THEN 0 WHEN games.name ILIKE ? ESCAPE '!' THEN 1 WHEN games.name ILIKE ? ESCAPE '!' THEN 2 ELSE 3 END", [$query, $prefix, $contains])
             ->orderByRaw('word_similarity(LOWER(?), LOWER(games.name)) DESC', [$query])

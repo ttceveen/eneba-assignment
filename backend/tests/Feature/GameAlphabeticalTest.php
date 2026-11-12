@@ -53,7 +53,7 @@ class GameAlphabeticalTest extends TestCase
                 }
             }
             foreach ($response->json('data') as $game) {
-                $this->assertSame(['id', 'name', 'location', 'img'], array_keys($game));
+                $this->assertSame(['id', 'name', 'location', 'img', 'min_price', 'offers_count'], array_keys($game));
             }
         }
         $this->assertSame($expected, $seen);

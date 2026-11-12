@@ -18,7 +18,8 @@ class GameController extends Controller
             'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.$maxPage],
         ]);
 
-        $query = Game::query()->where('games.is_active', true);
+        $query = Game::query()->select(['games.id', 'games.name', 'games.location', 'games.img'])
+            ->where('games.is_active', true)->withOfferSummary();
         $alphabetical = $request->query('sort') === 'alphabetical';
 
         if ($alphabetical) {
@@ -40,6 +41,12 @@ class GameController extends Controller
     public function show(Game $game): GameResource
     {
         abort_unless($game->is_active, 404);
+
+        $game->load(['availableOffers' => fn ($offers) => $offers
+            ->select(['id', 'game_id', 'seller_id', 'price', 'quantity'])
+            ->orderBy('price')->orderBy('id')->with('seller:id,name')]);
+        $game->setAttribute('min_price', $game->availableOffers->first()?->price);
+        $game->setAttribute('offers_count', $game->availableOffers->count());
 
         return new GameResource($game);
     }

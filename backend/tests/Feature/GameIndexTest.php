@@ -38,6 +38,8 @@ class GameIndexTest extends TestCase
                 'name' => $game->name,
                 'location' => $game->location,
                 'img' => $game->img,
+                'min_price' => null,
+                'offers_count' => 0,
             ], $games),
             $response->json('data'),
         );
@@ -46,7 +48,7 @@ class GameIndexTest extends TestCase
             $this->assertIsArray($game['location']);
             $this->assertArrayNotHasKey('created_at', $game);
             $this->assertArrayNotHasKey('updated_at', $game);
-            $this->assertCount(4, $game);
+            $this->assertCount(6, $game);
         }
     }
 

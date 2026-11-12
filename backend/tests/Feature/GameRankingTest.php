@@ -35,7 +35,7 @@ class GameRankingTest extends TestCase
             $this->assertEmpty(array_intersect($seen, $ids));
             $seen = array_merge($seen, $ids);
             foreach ($response->json('data') as $game) {
-                $this->assertCount(4, $game);
+                $this->assertCount(6, $game);
                 $this->assertArrayNotHasKey('purchase_count', $game);
                 $this->assertArrayNotHasKey('is_active', $game);
             }
