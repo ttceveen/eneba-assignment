@@ -15,11 +15,18 @@ export type Game = {
   offers?: Offer[]
 }
 
-async function getResponse(path: string, signal: AbortSignal): Promise<Response> {
+export function getApiBaseUrl(): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
   if (!baseUrl) throw new Error('VITE_API_BASE_URL is not configured')
 
-  return fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, { signal })
+  return baseUrl.replace(/\/+$/, '')
+}
+
+export async function getResponse(path: string, signal: AbortSignal, options: RequestInit = {}): Promise<Response> {
+  const baseUrl = getApiBaseUrl()
+  const headers = new Headers(options.headers)
+  headers.set('Accept', 'application/json')
+  return fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, { ...options, credentials: 'omit', headers, signal })
 }
 
 export type CatalogSort = 'popular' | 'alphabetical'

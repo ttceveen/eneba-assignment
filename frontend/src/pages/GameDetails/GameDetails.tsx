@@ -13,15 +13,16 @@ type GameState =
   | { status: 'error' }
 
 function GameContent({ id }: { id: string }) {
-  const { rememberGame } = useCart()
+  const { rememberGame, getSnapshot } = useCart()
   const [state, setState] = useState<GameState>({ status: 'loading' })
 
   useEffect(() => {
     const controller = new AbortController()
+    const snapshot = getSnapshot()
     getGame(id, controller.signal)
       .then((game) => {
         if (!controller.signal.aborted) {
-          if (game) rememberGame(game)
+          if (game) rememberGame(game, snapshot)
           setState(game ? { status: 'success', game } : { status: 'not-found' })
         }
       })
@@ -30,7 +31,7 @@ function GameContent({ id }: { id: string }) {
       })
 
     return () => controller.abort()
-  }, [id, rememberGame])
+  }, [id, rememberGame, getSnapshot])
 
   return (
     <main className={styles.main}>

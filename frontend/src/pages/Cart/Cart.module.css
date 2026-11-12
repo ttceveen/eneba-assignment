@@ -34,7 +34,6 @@
 .summary .primary { width: 100%; margin-block: 12px; }
 .primary:not(:disabled):hover { background: #ffe469; }
 .primary:disabled { border-color: #7950ca; background: #2c1759; color: #b3aac9; cursor: not-allowed; }
-.summary .checkoutNotice { color: #fad318; }
 .continue, .refresh { display: block; width: fit-content; margin-top: 18px; }
 .empty { padding: 60px 24px; text-align: center; border: 1px solid #7950ca; background: #1f0a4d; }
 .empty h2 { margin: 0 0 16px; font-size: 26px; }

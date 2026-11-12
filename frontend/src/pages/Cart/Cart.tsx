@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useCart } from '../../cart/context'
 import { formatCents, priceInCents } from '../../cart/cart'
 import { resolveCartOffers, type CartOffer } from '../../cart/resolveOffers'
@@ -10,12 +10,12 @@ type CartData = { key: string; status: 'loading' | 'error' }
   | { key: string; status: 'ready'; offers: Map<number, CartOffer> }
 
 export default function Cart() {
-  const { items, storageError, setQuantity, removeItem, rememberStock } = useCart()
+  const { items, storageError, setQuantity, removeItem, rememberStock, getSnapshot, syncRevision } = useCart()
   const [revision, setRevision] = useState(0)
   const ids = items.map((item) => item.offerId).sort((a, b) => a - b).join(',')
-  const requestKey = `${ids}:${revision}`
+  const requestKey = `${ids}:${revision}:${syncRevision}`
   const [data, setData] = useState<CartData>({ key: requestKey, status: 'loading' })
-  const [checkoutNotice, setCheckoutNotice] = useState(false)
+  const navigate = useNavigate()
   const ready = data.key === requestKey && data.status === 'ready'
   const offers = ready && data.status === 'ready' ? data.offers : new Map<number, CartOffer>()
   const failed = data.key === requestKey && data.status === 'error'
@@ -29,10 +29,12 @@ export default function Cart() {
     if (!ids) return
     const controller = new AbortController()
     const offerIds = ids.split(',').map(Number)
+    const snapshot = getSnapshot()
     resolveCartOffers(offerIds, controller.signal)
       .then((resolved) => {
         if (controller.signal.aborted) return
-        rememberStock(new Map([...resolved].map(([id, detail]) => [id, detail.offer.quantity])))
+        if (getSnapshot() !== snapshot) { setRevision((value) => value + 1); return }
+        rememberStock(new Map([...resolved].map(([id, detail]) => [id, detail.offer.quantity])), snapshot)
         setData({ key: requestKey, status: 'ready', offers: resolved })
       })
       .catch(() => {
@@ -42,7 +44,7 @@ export default function Cart() {
         }
       })
     return () => controller.abort()
-  }, [ids, requestKey, rememberStock])
+  }, [ids, requestKey, rememberStock, getSnapshot])
 
   return (
     <main className={styles.main}>
@@ -107,8 +109,7 @@ export default function Cart() {
               <div className={styles.total}><span>Total</span><strong aria-label="Cart total">{ready ? formatCents(total) : '—'}</strong></div>
               {ready && !allAvailable && <p className={styles.unavailable}>Unavailable offers are excluded from the total. Remove them before continuing.</p>}
               <p>Adding to cart does not reserve keys. Prices and availability will be checked by the server at checkout.</p>
-              <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => setCheckoutNotice(true)}>Proceed to checkout</button>
-              {checkoutNotice && <p role="status" className={styles.checkoutNotice}>You will need to sign in to complete your purchase. Sign-in and checkout are not available yet.</p>}
+              <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => navigate('/checkout')}>Proceed to checkout</button>
               <button type="button" className={styles.refresh} onClick={() => setRevision((value) => value + 1)}>Refresh prices</button>
               <Link className={styles.continue} to="/">Continue shopping</Link>
             </aside>
