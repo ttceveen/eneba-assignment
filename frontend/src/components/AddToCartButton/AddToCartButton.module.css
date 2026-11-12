@@ -1,0 +1,6 @@
+.container { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.container button { min-height: 42px; padding: 10px 18px; border: 1px solid #fad318; background: #fad318; color: #1f0a4d; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.container button:not(:disabled):hover { background: #ffe469; }
+.container button:disabled { border-color: #7950ca; background: #2c1759; color: #b3aac9; cursor: not-allowed; }
+.container button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.status { min-height: 20px; color: #23c299; font-size: 13px; line-height: 1.5; }

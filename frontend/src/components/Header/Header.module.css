@@ -27,3 +27,7 @@
 
 .navInner a[aria-current="page"] { color: #fad318; border-bottom-color: #fad318; }
 .navInner a:hover { color: #fad318; }
+
+.cart { position: relative; text-decoration: none; cursor: pointer; }
+.cart:focus-visible { outline: 2px solid #fad318; outline-offset: 5px; }
+.cartCount { position: absolute; top: -8px; right: -12px; min-width: 19px; padding: 2px 4px; border-radius: 12px; background: #fad318; color: #1f0a4d; font-size: 11px; font-weight: 700; line-height: 15px; text-align: center; }
