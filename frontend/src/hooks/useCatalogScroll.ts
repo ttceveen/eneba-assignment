@@ -26,7 +26,12 @@ export function useCatalogScroll(loaded: boolean) {
   const key = `eneba:catalog:${location.key}`
   const url = location.pathname + location.search
   const mainRef = useRef<HTMLElement>(null)
-  const [target] = useState(() => navigation === 'POP' ? readPosition(key, url) : null)
+  const [target] = useState(() => {
+    const own = navigation === 'POP' ? readPosition(key, url) : null
+    const source = (location.state as { restoreCatalogKey?: unknown } | null)?.restoreCatalogKey
+    // Explicit clear-search fallback when a former history entry is no longer reachable.
+    return own ?? (typeof source === 'string' ? readPosition(`eneba:catalog:${source}`, url) : null)
+  })
   const [restoring, setRestoring] = useState(target !== null)
   const anchorId = useRef(target?.anchorId ?? null)
 

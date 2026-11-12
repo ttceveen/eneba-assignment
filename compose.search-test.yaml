@@ -1,0 +1,51 @@
+# Separate project/network: never merge this file with compose.yaml.
+services:
+  search-postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: eneba_search_test
+      POSTGRES_USER: eneba_search_test
+      POSTGRES_PASSWORD: disposable-search-fixture
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eneba_search_test -d eneba_search_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  search-backend:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    entrypoint: ["sh", "-ec"]
+    command:
+      - >-
+        tar -C /source --exclude='./.env*' --exclude='./vendor' --exclude='./storage' --exclude='./bootstrap/cache' -cf - . | tar -C /app -xf -;
+        mkdir -p /app/storage/framework/cache/data /app/storage/framework/sessions /app/storage/framework/views /app/storage/logs /app/bootstrap/cache;
+        composer install --no-interaction --prefer-dist;
+        php vendor/bin/phpunit --configuration tests/Postgres/phpunit.xml --do-not-cache-result
+    volumes:
+      - ./backend:/source:ro
+    tmpfs:
+      - /app:uid=1000,gid=1000,mode=0755,exec
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_KEY: base64:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      APP_CONFIG_CACHE: /tmp/eneba-search-config.php
+      DB_CONNECTION: pgsql
+      DB_HOST: search-postgres
+      DB_PORT: 5432
+      DB_DATABASE: eneba_search_test
+      DB_USERNAME: eneba_search_test
+      DB_PASSWORD: disposable-search-fixture
+      DATABASE_URL: ""
+      DB_URL: ""
+      SEARCH_TEST_SANDBOX: "1"
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      LOG_CHANNEL: stderr
+    depends_on:
+      search-postgres:
+        condition: service_healthy

@@ -1,4 +1,5 @@
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
+import { catalogReturn } from '../../utils/catalogHistory'
 import GameCover from '../GameCover/GameCover'
 import styles from './GameCard.module.css'
 
@@ -11,9 +12,10 @@ type GameCardProps = {
 }
 
 export default function GameCard({ id, name, location, img, price }: GameCardProps) {
+  const routerLocation = useLocation()
   return (
     <article className={styles.card} data-game-id={id}>
-      <Link className={styles.link} to={`/games/${id}`} aria-label={name}>
+      <Link className={styles.link} to={`/games/${id}`} state={{ catalogReturn: catalogReturn(routerLocation) }} aria-label={name}>
         <GameCover name={name} img={img} />
         <div className={styles.details}>
           <h2 className={styles.name}>{name}</h2>
