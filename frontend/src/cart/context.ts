@@ -5,11 +5,13 @@ import type { CartItem } from './cart'
 type CartContextValue = {
   items: CartItem[]
   storageError: boolean
-  addItem: (offerId: number, stock: number) => void
+  syncRevision: number
+  getSnapshot: () => string
+  addItem: (offerId: number, stock: number) => boolean
   setQuantity: (offerId: number, quantity: number, stock?: number) => void
   removeItem: (offerId: number) => void
-  rememberGame: (game: Game) => void
-  rememberStock: (stock: ReadonlyMap<number, number>) => void
+  rememberGame: (game: Game, snapshot: string) => void
+  rememberStock: (stock: ReadonlyMap<number, number>, snapshot: string) => void
 }
 
 export const CartContext = createContext<CartContextValue | null>(null)

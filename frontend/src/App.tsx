@@ -7,6 +7,10 @@ import GameDetails from './pages/GameDetails/GameDetails'
 import styles from './App.module.css'
 import CartProvider from './cart/CartProvider'
 import Cart from './pages/Cart/Cart'
+import AuthProvider from './auth/AuthProvider'
+import RequireAuth from './auth/RequireAuth'
+import Auth from './pages/Auth/Auth'
+import ProtectedPage from './pages/Auth/ProtectedPage'
 
 function RouteScroll() {
   const location = useLocation()
@@ -28,16 +32,24 @@ export default function App() {
   return (
     <div className={styles.app}>
       <BrowserRouter>
-        <CartProvider>
-          <RouteScroll />
-          <Header />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/games/:id" element={<GameDetails />} />
-            <Route path="/cart" element={<Cart />} />
-          </Routes>
-          <Footer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <RouteScroll />
+            <Header />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/games/:id" element={<GameDetails />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/login" element={<Auth key="login" mode="login" />} />
+              <Route path="/register" element={<Auth key="register" mode="register" />} />
+              <Route element={<RequireAuth />}>
+                <Route path="/checkout" element={<ProtectedPage title="Checkout" />} />
+                <Route path="/orders" element={<ProtectedPage title="Order history" />} />
+              </Route>
+            </Routes>
+            <Footer />
+          </CartProvider>
+        </AuthProvider>
       </BrowserRouter>
     </div>
   )

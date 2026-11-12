@@ -1,5 +1,6 @@
 export type CartItem = { offerId: number; quantity: number }
 export const CART_STORAGE_KEY = 'eneba:cart'
+export const MAX_CART_ITEMS = 20
 
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 
@@ -10,6 +11,7 @@ export function parseCart(raw: string | null): CartItem[] {
     const unique = new Map<number, CartItem>()
     for (const item of value) {
       if (item && typeof item === 'object' && positive(item.offerId) && positive(item.quantity)) {
+        if (!unique.has(item.offerId) && unique.size >= MAX_CART_ITEMS) continue
         const previous = unique.get(item.offerId)
         unique.set(item.offerId, { offerId: item.offerId, quantity: Math.max(previous?.quantity ?? 0, item.quantity) })
       }
@@ -21,7 +23,7 @@ export function parseCart(raw: string | null): CartItem[] {
 export function addCartItem(items: CartItem[], offerId: number, stock: number): CartItem[] {
   if (!positive(offerId) || !positive(stock)) return items
   const current = items.find((item) => item.offerId === offerId)
-  if (!current) return [...items, { offerId, quantity: 1 }]
+  if (!current) return items.length >= MAX_CART_ITEMS ? items : [...items, { offerId, quantity: 1 }]
   const quantity = current.quantity >= stock ? stock : current.quantity + 1
   return setCartQuantity(items, offerId, quantity, stock)
 }

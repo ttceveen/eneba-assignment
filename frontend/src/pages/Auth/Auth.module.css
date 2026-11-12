@@ -1,0 +1,11 @@
+.main { width: min(460px, calc(100% - 40px)); margin: 48px auto; }
+.panel { background: #351183; padding: 32px; border: 1px solid #6543a0; border-radius: 6px; }
+.panel h1 { margin-top: 0; }
+.field { display: grid; gap: 8px; margin-bottom: 20px; }
+.field input { width: 100%; box-sizing: border-box; border: 1px solid #9478c6; border-radius: 4px; background: #241052; color: white; padding: 12px; font: inherit; }
+.field input:focus-visible, .primary:focus-visible, .panel a:focus-visible { outline: 2px solid #fad318; outline-offset: 3px; }
+.primary { width: 100%; margin-bottom: 24px; border: 0; border-radius: 4px; padding: 14px; font: inherit; font-weight: 700; background: #fad318; color: #241052; cursor: pointer; }
+.primary:disabled { opacity: .6; cursor: wait; }
+.panel a { color: #fad318; }
+.error { color: #ffb8c3; overflow-wrap: anywhere; margin-block: 6px; }
+@media(max-width: 480px) { .panel { padding: 24px; } }

@@ -67,3 +67,30 @@ test('fresh stock limits restored quantities without deleting unavailable positi
   ])
   assert.equal(limitCartQuantities(items, new Map()), items)
 })
+
+test('F03 rejects a 21st unique offer but allows repeats and freed slots', () => {
+  let items = []
+  for (let id = 1; id <= 20; id++) items = addCartItem(items, id, 5)
+  assert.equal(items.length, 20)
+  assert.deepEqual(addCartItem(items, 21, 5), items)
+  items = addCartItem(items, 1, 5)
+  assert.equal(items.length, 20)
+  assert.equal(items[0].quantity, 2)
+  items = addCartItem(removeCartItem(items, 2), 21, 5)
+  assert.equal(items.length, 20)
+  assert.equal(items.at(-1).offerId, 21)
+})
+test('F03 legacy 21 and 101 position carts retain first 20 valid unique offers in order', () => {
+  for (const count of [21, 101]) {
+    const saved = Array.from({ length: count }, (_, i) => ({ offerId: count - i, quantity: 2 }))
+    assert.deepEqual(parseCart(JSON.stringify(saved)), saved.slice(0, 20))
+  }
+})
+
+test('legacy limit counts unique valid IDs and preserves order with invalid/duplicate rows', () => {
+  const saved = [null, { offerId: -1, quantity: 1 }, { offerId: 1, quantity: 2 }, { offerId: 1, quantity: 4 }, ...Array.from({ length: 100 }, (_, i) => ({ offerId: i + 2, quantity: 1 })), { offerId: 1, quantity: 7 }]
+  const normalized = parseCart(JSON.stringify(saved))
+  assert.equal(normalized.length, 20)
+  assert.deepEqual(normalized.map((item) => item.offerId), Array.from({ length: 20 }, (_, i) => i + 1))
+  assert.equal(normalized[0].quantity, 7)
+})

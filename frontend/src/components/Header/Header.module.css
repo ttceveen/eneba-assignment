@@ -4,7 +4,7 @@
 .logo { display: flex; flex: 0 0 auto; }
 .logo img { display: block; width: 155px; height: auto; }
 .actions { display: flex; align-items: center; gap: 26px; margin-left: auto; }
-.account, .cart { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 5px 0; color: #fff; background: none; border: 0; font: inherit; font-size: 14px; white-space: nowrap; cursor: not-allowed; }
+.account, .cart { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 5px 0; color: #fff; background: none; border: 0; font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; text-decoration: none; }
 .account svg, .cart svg { width: 25px; height: 25px; flex-shrink: 0; }
 .navigation { border-top: 1px solid rgb(255 255 255 / 8%); }
 .navInner { display: flex; gap: 28px; }
@@ -15,7 +15,7 @@
   .logo img { width: 132px; }
   .actions { gap: 20px; }
   .account span { display: none; }
-  .account { width: 30px; }
+  .account { min-width: 30px; }
 }
 @media (max-width: 600px) {
   .inner, .navInner { width: calc(100% - 40px); }
@@ -31,3 +31,7 @@
 .cart { position: relative; text-decoration: none; cursor: pointer; }
 .cart:focus-visible { outline: 2px solid #fad318; outline-offset: 5px; }
 .cartCount { position: absolute; top: -8px; right: -12px; min-width: 19px; padding: 2px 4px; border-radius: 12px; background: #fad318; color: #1f0a4d; font-size: 11px; font-weight: 700; line-height: 15px; text-align: center; }
+
+.account:focus-visible { outline: 2px solid #fad318; outline-offset: 5px; }
+
+.account span { max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
