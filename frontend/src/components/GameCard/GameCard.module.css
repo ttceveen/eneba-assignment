@@ -4,4 +4,8 @@
 .details { padding: 20px 18px 21px; }
 .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; height: 2.8em; margin: 0; overflow: hidden; color: #fff; font-size: 16px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .region { height: 1.5em; margin: 9px 0 21px; overflow: hidden; color: #23c299; font-size: 12px; font-weight: 700; line-height: 1.5; white-space: nowrap; text-overflow: ellipsis; }
-.price { margin: 0; color: #fff; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.8px; }
+.price { margin: 0; color: #fff; font-size: 26px; line-height: 1.15; font-weight: 700; letter-spacing: -0.8px; }
+
+.offers { min-height: 66px; }
+.offerCount { margin: 8px 0 0; color: #c5b1f1; font-size: 12px; line-height: 1.5; }
+.noOffers { margin: 0; padding-top: 8px; color: #c5b1f1; font-size: 14px; line-height: 1.5; }

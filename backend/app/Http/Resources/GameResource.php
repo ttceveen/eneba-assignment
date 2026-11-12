@@ -17,6 +17,9 @@ class GameResource extends JsonResource
             'name' => $this->name,
             'location' => $this->location,
             'img' => $this->img,
+            'min_price' => $this->whenHas('min_price'),
+            'offers_count' => $this->whenHas('offers_count'),
+            'offers' => OfferResource::collection($this->whenLoaded('availableOffers')),
         ];
     }
 }

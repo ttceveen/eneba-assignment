@@ -118,7 +118,7 @@ class GameSearchTest extends TestCase
                 }
             }
             foreach ($payload['data'] as $game) {
-                $this->assertSame(['id', 'name', 'location', 'img'], array_keys($game));
+                $this->assertSame(['id', 'name', 'location', 'img', 'min_price', 'offers_count'], array_keys($game));
                 $this->assertIsArray($game['location']);
                 $this->assertNull($game['img']);
             }

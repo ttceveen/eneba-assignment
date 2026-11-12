@@ -50,7 +50,7 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
             {catalog.page.data.length === 0 ? <p role="status">{query ? 'No games found.' : 'No games available.'}</p> : (
               <div className={styles.grid}>
                 {catalog.page.data.map((game) => (
-                  <GameCard key={game.id} id={game.id} name={game.name} location={game.location} img={game.img} />
+                  <GameCard key={game.id} id={game.id} name={game.name} location={game.location} img={game.img} price={game.min_price} offersCount={game.offers_count} />
                 ))}
               </div>
             )}

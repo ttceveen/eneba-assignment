@@ -20,3 +20,12 @@
   .information { padding-top: 0; }
   .information h1 { margin-bottom: 24px; }
 }
+
+.offers { margin-top: 32px; padding-top: 24px; border-top: 1px solid rgb(255 255 255 / 20%); }
+.offers h2 { margin: 0 0 16px; color: #fff; font-size: 20px; line-height: 1.4; }
+.offerList { margin: 0; padding: 0; list-style: none; }
+.offer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 18px 0; border-bottom: 1px solid rgb(255 255 255 / 12%); }
+.seller { min-width: 0; overflow-wrap: anywhere; font-size: 16px; line-height: 1.5; }
+.offerPrice { font-size: 20px; font-weight: 700; line-height: 1.5; color: #fad318; }
+.quantity { grid-column: 1 / -1; color: #c5b1f1; font-size: 13px; line-height: 1.5; }
+.noOffers { color: #c5b1f1; font-size: 14px; }

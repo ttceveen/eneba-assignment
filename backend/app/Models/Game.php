@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['name', 'location', 'img', 'is_active'])]
@@ -42,5 +44,23 @@ class Game extends Model
     public function popularity(): HasOne
     {
         return $this->hasOne(GamePopularity::class);
+    }
+
+    public function offers(): HasMany
+    {
+        return $this->hasMany(Offer::class);
+    }
+
+    public function availableOffers(): HasMany
+    {
+        return $this->offers()->where('offers.is_active', true)->where('quantity', '>', 0)
+            ->whereHas('seller', fn (Builder $seller) => $seller->where('is_active', true));
+    }
+
+    public function scopeWithOfferSummary(Builder $query): Builder
+    {
+        return $query->withMin('availableOffers as min_price', 'price')
+            ->withCount('availableOffers as offers_count')
+            ->withCasts(['min_price' => 'decimal:2']);
     }
 }

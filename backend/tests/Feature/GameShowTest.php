@@ -26,6 +26,9 @@ class GameShowTest extends TestCase
                 'name' => $game->name,
                 'location' => $game->location,
                 'img' => $game->img,
+                'min_price' => null,
+                'offers_count' => 0,
+                'offers' => [],
             ]]);
             $this->assertIsArray($response->json('data.location'));
             $response->assertJsonMissingPath('data.created_at')->assertJsonMissingPath('data.updated_at');

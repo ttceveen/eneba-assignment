@@ -1,8 +1,18 @@
+export type Offer = {
+  id: number
+  seller: { id: number; name: string }
+  price: string
+  quantity: number
+}
+
 export type Game = {
   id: number
   name: string
   location: string[]
   img: string | null
+  min_price?: string | null
+  offers_count?: number
+  offers?: Offer[]
 }
 
 async function getResponse(path: string, signal: AbortSignal): Promise<Response> {
@@ -28,12 +38,31 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 }
 
+function isPrice(value: unknown): value is string {
+  return typeof value === 'string' && /^(0|[1-9]\d{0,7})\.\d{2}$/.test(value)
+}
+
+function isOffer(value: unknown): value is Offer {
+  return isRecord(value) && isPositiveInteger(value.id)
+    && isRecord(value.seller) && isPositiveInteger(value.seller.id) && typeof value.seller.name === 'string'
+    && isPrice(value.price) && isPositiveInteger(value.quantity)
+}
+
+function hasOfferSummary(value: Record<string, unknown>): boolean {
+  // Older responses can omit the additive fields; partial/invalid summaries are rejected.
+  if (value.min_price === undefined && value.offers_count === undefined) return true
+  return typeof value.offers_count === 'number' && Number.isSafeInteger(value.offers_count) && value.offers_count >= 0
+    && (value.offers_count === 0 ? value.min_price === null : isPrice(value.min_price))
+}
+
 function isGame(value: unknown): value is Game {
   return isRecord(value)
     && isPositiveInteger(value.id)
     && typeof value.name === 'string'
     && Array.isArray(value.location) && value.location.every((country) => typeof country === 'string')
     && (value.img === null || typeof value.img === 'string')
+    && hasOfferSummary(value)
+    && (value.offers === undefined || (Array.isArray(value.offers) && value.offers.every(isOffer)))
 }
 
 function isNullableString(value: unknown): value is string | null {

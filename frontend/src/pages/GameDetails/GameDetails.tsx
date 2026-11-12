@@ -45,6 +45,20 @@ function GameContent({ id }: { id: string }) {
               <h2>Availability</h2>
               <p>{state.game.location.includes('GLOBAL') ? 'Worldwide' : state.game.location.join(', ')}</p>
             </div>
+            <section className={styles.offers} aria-label="Предложения продавцов">
+              <h2>Предложения продавцов</h2>
+              {state.game.offers?.length ? (
+                <ul className={styles.offerList}>
+                  {state.game.offers.map((offer) => (
+                    <li key={offer.id} className={styles.offer}>
+                      <span className={styles.seller}>{offer.seller.name}</span>
+                      <span className={styles.offerPrice}>{new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(offer.price))}</span>
+                      <span className={styles.quantity}>Доступно: {offer.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className={styles.noOffers}>Нет предложений</p>}
+            </section>
           </section>
         </div>
       )}

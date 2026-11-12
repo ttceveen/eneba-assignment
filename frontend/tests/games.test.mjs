@@ -114,3 +114,39 @@ test('search and preview propagate HTTP failures', async (t) => {
   await assert.rejects(searchGames(1, 'fixture', signal()), /HTTP 503/)
   await assert.rejects(getSearchPreview('fixture', signal()), /HTTP 503/)
 })
+
+
+test('catalog accepts decimal summary and zero-priced available offers', async (t) => {
+  const games = [{ ...game, min_price: '19.99', offers_count: 3 }, { ...game, id: 2, min_price: '0.00', offers_count: 1 }]
+  reply(t, page(games))
+  assert.deepEqual((await getGames(1, 'popular', signal())).data, games)
+})
+test('unavailable offers preserve null minimum without inventing a price', async (t) => {
+  const value = { ...game, min_price: null, offers_count: 0, offers: [] }
+  reply(t, { data: value })
+  assert.deepEqual(await getGame('1', signal()), value)
+})
+const offer = { id: 1, seller: { id: 2, name: 'Seller fixture' }, price: '19.99', quantity: 5 }
+test('details preserve seller offers in API order', async (t) => {
+  const value = { ...game, min_price: '19.99', offers_count: 1, offers: [offer] }
+  reply(t, { data: value })
+  assert.deepEqual(await getGame('1', signal()), value)
+})
+for (const summary of [
+  { min_price: 19.99, offers_count: 1 }, { min_price: '-1.00', offers_count: 1 },
+  { min_price: '1.001', offers_count: 1 }, { min_price: null, offers_count: 1 },
+  { min_price: '0.00', offers_count: 0 }, { min_price: null, offers_count: -1 },
+  { min_price: '1.00', offers_count: '2' }, { min_price: '1.00' }, { offers_count: 1 },
+]) {
+  test(`rejects invalid offer summary ${JSON.stringify(summary)}`, async (t) => {
+    reply(t, page([{ ...game, ...summary }]))
+    await assert.rejects(getGames(1, 'popular', signal()), /Invalid games response/)
+  })
+}
+for (const value of [null, { ...offer, seller: null }, { ...offer, seller: { id: '2', name: 'Bad' } },
+  { ...offer, quantity: 0 }, { ...offer, quantity: -1 }, { ...offer, price: 19.99 }]) {
+  test('rejects an invalid public seller offer', async (t) => {
+    reply(t, { data: { ...game, offers: [value] } })
+    await assert.rejects(getGame('1', signal()), /Invalid game response/)
+  })
+}
