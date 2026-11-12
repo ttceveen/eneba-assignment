@@ -12,12 +12,13 @@ type CatalogState =
 
 function CatalogPage({ page, sort, onPageChange }: { page: number; sort: CatalogSort; onPageChange: (page: number) => void }) {
   const [catalog, setCatalog] = useState<CatalogState>({ status: 'loading' })
-  const ready = catalog.status !== 'loading'
-  const scroll = useCatalogScroll(ready)
+  const loaded = catalog.status === 'success'
+  const { mainRef, remember, restoring: pendingRestoration, mainHeight } = useCatalogScroll(loaded)
+  const restoring = pendingRestoration && catalog.status !== 'error'
 
   function navigatePage(number: number) {
     if (number === page || catalog.status !== 'success' || number < 1 || number > catalog.page.meta.last_page) return
-    scroll.remember()
+    remember()
     onPageChange(number)
   }
 
@@ -35,12 +36,12 @@ function CatalogPage({ page, sort, onPageChange }: { page: number; sort: Catalog
   }, [page, sort])
 
   return (
-    <main className={styles.main} id="games" ref={scroll.mainRef}
-      aria-busy={!ready || scroll.restoring}
-      style={{ minHeight: scroll.restoring ? scroll.mainHeight : undefined }}>
+    <main className={styles.main} id="games" ref={mainRef}
+      aria-busy={catalog.status === 'loading' || (loaded && restoring)}
+      style={{ minHeight: restoring ? mainHeight : undefined }}>
       <h1 className={styles.heading}>Games</h1>
-      {catalog.status === 'loading' && <p role="status" className={scroll.restoring ? styles.restoringStatus : undefined}>Loading games...</p>}
-      <div style={{ visibility: scroll.restoring && ready ? 'hidden' : undefined }}>
+      {catalog.status === 'loading' && <p role="status" className={restoring ? styles.restoringStatus : undefined}>Loading games...</p>}
+      <div style={{ visibility: restoring && loaded ? 'hidden' : undefined }}>
         {catalog.status === 'error' && <p role="alert">Failed to load games.</p>}
         {catalog.status === 'success' && (
           <>

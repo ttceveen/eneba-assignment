@@ -20,7 +20,7 @@ function readPosition(key: string, url: string): CatalogPosition | null {
   return null
 }
 
-export function useCatalogScroll(ready: boolean) {
+export function useCatalogScroll(loaded: boolean) {
   const location = useLocation()
   const navigation = useNavigationType()
   const key = `eneba:catalog:${location.key}`
@@ -32,7 +32,8 @@ export function useCatalogScroll(ready: boolean) {
 
   const remember = useCallback((clickedCard?: HTMLElement) => {
     const main = mainRef.current
-    if (!main || !ready || restoring) return
+    // Failed requests must never replace the last successful catalog snapshot.
+    if (!main || !loaded || restoring) return
     const cards = [...main.querySelectorAll<HTMLElement>('[data-game-id]')]
     const visible = (card: HTMLElement) => {
       const box = card.getBoundingClientRect()
@@ -47,7 +48,7 @@ export function useCatalogScroll(ready: boolean) {
       anchorId: anchorId.current, anchorOffset: anchor?.getBoundingClientRect().top ?? 0,
     }
     try { sessionStorage.setItem(key, JSON.stringify(position)) } catch { /* Optional browser storage. */ }
-  }, [key, url, ready, restoring])
+  }, [key, url, loaded, restoring])
 
   useLayoutEffect(() => {
     // POP restoration waits for API data. PUSH/REPLACE begins at the catalog top.
@@ -56,7 +57,7 @@ export function useCatalogScroll(ready: boolean) {
 
   useLayoutEffect(() => {
     const main = mainRef.current
-    if (!ready || !restoring || !target || !main) return
+    if (!loaded || !restoring || !target || !main) return
     // Remove the loading-height reservation before measuring the final grid.
     main.style.minHeight = ''
     const anchor = [...main.querySelectorAll<HTMLElement>('[data-game-id]')]
@@ -65,10 +66,10 @@ export function useCatalogScroll(ready: boolean) {
     const maximum = Math.max(0, document.documentElement.scrollHeight - innerHeight)
     window.scrollTo({ top: Math.max(0, Math.min(y, maximum)), left: 0, behavior: 'instant' })
     setRestoring(false)
-  }, [ready, restoring, target])
+  }, [loaded, restoring, target])
 
   useLayoutEffect(() => {
-    if (!ready || restoring) return
+    if (!loaded || restoring) return
     let frame = 0
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; remember() })
@@ -90,7 +91,7 @@ export function useCatalogScroll(ready: boolean) {
       removeEventListener('pagehide', save)
       removeEventListener('popstate', save)
     }
-  }, [ready, restoring, remember])
+  }, [loaded, restoring, remember])
 
   return { mainRef, remember, restoring, mainHeight: target?.mainHeight }
 }

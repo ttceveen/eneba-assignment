@@ -11,6 +11,13 @@ class GameController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $perPage = 12;
+        // (page - 1) * perPage must remain an integer within PHP_INT_MAX.
+        $maxPage = intdiv(PHP_INT_MAX, $perPage) + 1;
+        $validated = $request->validate([
+            'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.$maxPage],
+        ]);
+
         $query = Game::query()->where('games.is_active', true);
         $alphabetical = $request->query('sort') === 'alphabetical';
 
@@ -22,7 +29,7 @@ class GameController extends Controller
                 ->orderBy('game_popularities.game_id');
         }
 
-        $games = $query->paginate(12, ['games.id', 'games.name', 'games.location', 'games.img']);
+        $games = $query->paginate($perPage, ['games.id', 'games.name', 'games.location', 'games.img'], 'page', (int) ($validated['page'] ?? 1));
         if ($alphabetical) {
             $games->appends(['sort' => 'alphabetical']);
         }

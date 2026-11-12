@@ -20,6 +20,37 @@ export type GamesPage = {
   meta: { current_page: number; last_page: number; per_page: number; total: number }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+function isGame(value: unknown): value is Game {
+  return isRecord(value)
+    && isPositiveInteger(value.id)
+    && typeof value.name === 'string'
+    && Array.isArray(value.location) && value.location.every((country) => typeof country === 'string')
+    && (value.img === null || typeof value.img === 'string')
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isGamesPage(value: unknown): value is GamesPage {
+  if (!isRecord(value) || !Array.isArray(value.data) || !value.data.every(isGame)
+    || !isRecord(value.meta) || !isRecord(value.links)) return false
+
+  return isPositiveInteger(value.meta.current_page) && isPositiveInteger(value.meta.last_page)
+    && isPositiveInteger(value.meta.per_page)
+    && typeof value.meta.total === 'number' && Number.isSafeInteger(value.meta.total) && value.meta.total >= 0
+    && typeof value.links.first === 'string' && typeof value.links.last === 'string'
+    && isNullableString(value.links.prev) && isNullableString(value.links.next)
+}
+
 export async function getGames(page: number, sort: CatalogSort, signal: AbortSignal): Promise<GamesPage> {
   const query = new URLSearchParams()
   if (sort === 'alphabetical') query.set('sort', sort)
@@ -27,12 +58,8 @@ export async function getGames(page: number, sort: CatalogSort, signal: AbortSig
   const response = await getResponse(`/games?${query}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
-  const payload: GamesPage = await response.json()
-  if (!Array.isArray(payload.data) || !payload.meta
-    || !Number.isInteger(payload.meta.current_page) || payload.meta.current_page < 1
-    || !Number.isInteger(payload.meta.last_page) || payload.meta.last_page < 1) {
-    throw new Error('Invalid games response')
-  }
+  const payload: unknown = await response.json()
+  if (!isGamesPage(payload)) throw new Error('Invalid games response')
 
   return payload
 }
@@ -42,8 +69,8 @@ export async function getGame(id: string, signal: AbortSignal): Promise<Game | n
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
-  const payload: { data: Game } = await response.json()
-  if (!payload.data || typeof payload.data.id !== 'number') throw new Error('Invalid game response')
+  const payload: unknown = await response.json()
+  if (!isRecord(payload) || !isGame(payload.data)) throw new Error('Invalid game response')
 
   return payload.data
 }

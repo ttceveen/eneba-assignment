@@ -34,12 +34,16 @@ docker compose exec backend php artisan migrate
 docker compose exec backend php artisan migrate:status
 # Composer и PHPUnit
 docker compose exec backend composer install
-docker compose exec backend composer test
-docker compose exec backend php vendor/bin/phpunit
+# Сначала проверить фактическое безопасное подключение (без RefreshDatabase)
+docker compose exec -T backend php vendor/bin/phpunit --filter TestDatabaseIsolationTest --do-not-cache-result
+# Затем полный набор; phpunit.xml принудительно задаёт SQLite in-memory
+docker compose exec -T backend php vendor/bin/phpunit --do-not-cache-result
 # npm, сборка и проверка frontend
 docker compose exec frontend npm install
 docker compose exec frontend npm run build
 docker compose exec frontend npm run lint
+# Runtime-проверка API без дополнительных зависимостей (Node.js 24)
+docker compose exec -T frontend node --test tests/games.test.mjs
 # Логи и состояние
 docker compose logs -f
 docker compose ps
@@ -49,7 +53,7 @@ docker compose down
 docker compose up -d --build
 ```
 
-`docker compose down -v` удаляет данные БД и тома зависимостей — не используйте для обычной остановки. PHPUnit использует отдельную SQLite in-memory базу из штатного phpunit.xml и не изменяет PostgreSQL. Реальное подключение PostgreSQL проверяется API health и миграциями. После изменения composer.lock перезапустите backend; после изменения package-lock.json перезапустите frontend. Для новых PHP-расширений пересоберите образ.
+`docker compose down -v` удаляет данные БД и тома зависимостей — не используйте для обычной остановки. PHPUnit принудительно задаёт APP_ENV=testing, DB_CONNECTION=sqlite, DB_DATABASE=:memory: и очищает DB_URL/DATABASE_URL в environment и $_SERVER, перекрывая значения Compose. Tests\TestCase до RefreshDatabase проверяет конфигурацию и реальный PDO SQLite in-memory; создание PostgreSQL или файлового SQLite-подключения в тестах запрещено. Небезопасная конфигурация (включая cached config) завершает тест до миграций. Все Feature-тесты должны наследовать Tests\TestCase; не обходите защиту и не переопределяйте createApplication без вызова родителя. PostgreSQL-тесты этим набором не поддерживаются. Рабочая PostgreSQL не используется. Реальное подключение PostgreSQL проверяется API health и миграциями. После изменения composer.lock перезапустите backend; после изменения package-lock.json перезапустите frontend. Для новых PHP-расширений пересоберите образ.
 
 ## История AI
 
