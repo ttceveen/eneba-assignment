@@ -74,3 +74,26 @@ export async function getGame(id: string, signal: AbortSignal): Promise<Game | n
 
   return payload.data
 }
+
+export type SearchPreview = { data: Game[]; suggestions: string[] }
+
+export async function searchGames(page: number, query: string, signal: AbortSignal): Promise<GamesPage> {
+  const params = new URLSearchParams({ q: query, page: String(page) })
+  const response = await getResponse(`/games/search?${params}`, signal)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const payload: unknown = await response.json()
+  if (!isGamesPage(payload)) throw new Error('Invalid games response')
+  return payload
+}
+
+export async function getSearchPreview(query: string, signal: AbortSignal): Promise<SearchPreview> {
+  const params = new URLSearchParams({ q: query, preview: '1' })
+  const response = await getResponse(`/games/search?${params}`, signal)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const payload: unknown = await response.json()
+  if (!isRecord(payload) || !Array.isArray(payload.data) || !payload.data.every(isGame)
+    || !Array.isArray(payload.suggestions) || !payload.suggestions.every((phrase) => typeof phrase === 'string')) {
+    throw new Error('Invalid search preview response')
+  }
+  return payload as SearchPreview
+}

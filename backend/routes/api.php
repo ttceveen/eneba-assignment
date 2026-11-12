@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\GameController;
+use App\Http\Controllers\GameSearchController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -11,5 +12,7 @@ Route::get('/health', function () {
 });
 
 Route::get('/games', [GameController::class, 'index']);
+
+Route::get('/games/search', GameSearchController::class);
 
 Route::get('/games/{game}', [GameController::class, 'show'])->whereNumber('game');
