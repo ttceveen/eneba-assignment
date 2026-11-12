@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { getGame, type Game } from '../../api/games'
 import GameCover from '../../components/GameCover/GameCover'
+import { useCart } from '../../cart/context'
+import AddToCartButton from '../../components/AddToCartButton/AddToCartButton'
 import styles from './GameDetails.module.css'
 
 type GameState =
@@ -11,6 +13,7 @@ type GameState =
   | { status: 'error' }
 
 function GameContent({ id }: { id: string }) {
+  const { rememberGame } = useCart()
   const [state, setState] = useState<GameState>({ status: 'loading' })
 
   useEffect(() => {
@@ -18,6 +21,7 @@ function GameContent({ id }: { id: string }) {
     getGame(id, controller.signal)
       .then((game) => {
         if (!controller.signal.aborted) {
+          if (game) rememberGame(game)
           setState(game ? { status: 'success', game } : { status: 'not-found' })
         }
       })
@@ -26,7 +30,7 @@ function GameContent({ id }: { id: string }) {
       })
 
     return () => controller.abort()
-  }, [id])
+  }, [id, rememberGame])
 
   return (
     <main className={styles.main}>
@@ -54,6 +58,7 @@ function GameContent({ id }: { id: string }) {
                       <span className={styles.seller}>{offer.seller.name}</span>
                       <span className={styles.offerPrice}>{new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(offer.price))}</span>
                       <span className={styles.quantity}>Доступно: {offer.quantity}</span>
+                      <AddToCartButton offer={offer} gameId={state.game.id} />
                     </li>
                   ))}
                 </ul>

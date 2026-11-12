@@ -1,8 +1,12 @@
 import { Link, useLocation } from 'react-router'
 import styles from './Header.module.css'
+import { useCart } from '../../cart/context'
+import { cartCount } from '../../cart/cart'
 import SearchPanel from '../SearchPanel/SearchPanel'
 
 export default function Header() {
+  const { items } = useCart()
+  const count = cartCount(items)
   const { pathname, search, key } = useLocation()
   const searching = Boolean(new URLSearchParams(search).get('q')?.trim())
   const alphabetical = new URLSearchParams(search).get('sort') === 'alphabetical'
@@ -20,12 +24,13 @@ export default function Header() {
             </svg>
             <span>Log in</span>
           </button>
-          <button className={styles.cart} type="button" aria-label="Shopping cart" disabled title="Shopping cart is not available yet">
+          <Link className={styles.cart} to="/cart" aria-label={`Shopping cart, ${count} ${count === 1 ? 'item' : 'items'}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M2 3h3l2.2 12h12L22 6H5.6M8 15l-1 3h13" />
               <circle cx="9" cy="21" r="1" /><circle cx="19" cy="21" r="1" />
             </svg>
-          </button>
+            <span className={styles.cartCount} aria-hidden="true">{count > 99 ? '99+' : count}</span>
+          </Link>
         </div>
       </div>
       <nav className={styles.navigation} aria-label="Main navigation">

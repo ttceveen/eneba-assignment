@@ -5,6 +5,8 @@ import Footer from './components/Footer/Footer'
 import Home from './pages/Home/Home'
 import GameDetails from './pages/GameDetails/GameDetails'
 import styles from './App.module.css'
+import CartProvider from './cart/CartProvider'
+import Cart from './pages/Cart/Cart'
 
 function RouteScroll() {
   const location = useLocation()
@@ -26,13 +28,16 @@ export default function App() {
   return (
     <div className={styles.app}>
       <BrowserRouter>
-        <RouteScroll />
-        <Header />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/games/:id" element={<GameDetails />} />
-        </Routes>
-        <Footer />
+        <CartProvider>
+          <RouteScroll />
+          <Header />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/games/:id" element={<GameDetails />} />
+            <Route path="/cart" element={<Cart />} />
+          </Routes>
+          <Footer />
+        </CartProvider>
       </BrowserRouter>
     </div>
   )
