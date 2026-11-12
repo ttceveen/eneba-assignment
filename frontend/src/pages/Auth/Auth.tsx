@@ -53,5 +53,6 @@ export default function Auth({ mode }: { mode: 'login' | 'register' }) {
       <button className={styles.primary} type="submit" disabled={busy || loading}>{busy ? 'Please wait...' : title}</button>
     </form>
     <Link to={`/${mode === 'register' ? 'login' : 'register'}${raw ? `?redirect=${encodeURIComponent(destination)}` : ''}`}>{mode === 'register' ? 'Already have an account? Log in' : 'Create an account'}</Link>
+    {destination === '/checkout' && <p><Link to="/cart">Cancel and return to cart</Link></p>}
   </section></main>
 }
