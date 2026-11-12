@@ -48,11 +48,11 @@ Composer устанавливает lock-файл с `--no-dev --optimize-autolo
 3. Вручную выполните из корня проекта:
 
 ```powershell
-docker run --rm --env-file backend/.env.production.local eneba-backend-prod php artisan migrate --force
-docker run --rm --env-file backend/.env.production.local eneba-backend-prod php artisan migrate:status
+.\scripts\production-db.ps1 -Action Migrate -DryRun
+.\scripts\production-db.ps1 -Action Migrate
 ```
 
-Секреты читаются из файла, не передаются текстом команд. Команды требуют доступа к БД из вашей сети, обходятся без PHP/Composer в Windows и функций Render SSH/one-off jobs. Выполняйте миграции осознанно до запуска соответствующей версии приложения. **В рамках этой задачи команды выполнялись только на отдельной локальной тестовой БД, не на Neon.**
+Перед применением требуется отдельное ручное подтверждение `MIGRATE NEON`; подробный процесс и отдельная команда сидеров — в [production-database.md](production-database.md). Секреты читаются из файла, не передаются текстом команд. Команды требуют доступа к БД из вашей сети, обходятся без PHP/Composer в Windows и функций Render SSH/one-off jobs. Выполняйте миграции осознанно до запуска соответствующей версии приложения. **В рамках этой задачи команды выполнялись только на отдельной локальной тестовой БД, не на Neon.**
 
 4. Вручную настройте Render Docker service: Docker build context `./backend`, Dockerfile `./backend/Dockerfile.prod`, health check `/up`; задайте APP_KEY, APP_URL, FRONTEND_URL, DB_CONNECTION, DATABASE_URL, APP_ENV, APP_DEBUG, LOG_CHANNEL из примера. PORT предоставляет Render (по умолчанию образ использует 10000). Поле Root Directory оставьте пустым, чтобы пути были относительно корня репозитория. Не задавайте устаревшие DB_HOST/DB_PORT/DB_DATABASE/DB_USERNAME/DB_PASSWORD и DB_URL вместе с DATABASE_URL.
 5. Самостоятельно настройте Vercel: Root Directory `frontend`, build `npm run build`, output `dist`, env `VITE_API_BASE_URL=https://YOUR-BACKEND.onrender.com/api`. Production-сборка локально при установленном Node.js:

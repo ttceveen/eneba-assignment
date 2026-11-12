@@ -1,0 +1,4 @@
+.cover { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; background: #2c1759; }
+.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #b3aac9; }
+.placeholder svg { width: 54px; height: 54px; }
+.placeholder span { font-size: 12px; line-height: 1.5; }

@@ -1,0 +1,22 @@
+.main { width: min(1200px, calc(100% - 64px)); margin-inline: auto; padding-block: 32px 64px; flex: 1; }
+.back { display: inline-block; margin-bottom: 30px; color: #dcd8e6; font-size: 14px; text-decoration: none; }
+.back:hover { color: #fad318; }
+.back:focus-visible { outline: 2px solid #fad318; outline-offset: 5px; }
+.layout { display: grid; grid-template-columns: minmax(220px, 360px) minmax(0, 1fr); align-items: start; gap: 56px; }
+.cover { overflow: hidden; border: 1px solid #7950ca; }
+.information { min-width: 0; padding-top: 8px; }
+.information h1 { margin: 0 0 30px; color: #fff; font-size: clamp(28px, 3vw, 40px); line-height: 1.2; overflow-wrap: anywhere; }
+.availability { padding-top: 24px; border-top: 1px solid rgb(255 255 255 / 20%); }
+.availability h2 { margin: 0 0 12px; color: #c5b1f1; font-size: 14px; font-weight: 400; }
+.availability p { margin: 0; color: #23c299; font-size: 18px; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .layout { grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 30px; }
+}
+@media (max-width: 600px) {
+  .main { width: calc(100% - 40px); padding-block: 26px 40px; }
+  .back { margin-bottom: 24px; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .cover { width: min(100%, 360px); }
+  .information { padding-top: 0; }
+  .information h1 { margin-bottom: 24px; }
+}
