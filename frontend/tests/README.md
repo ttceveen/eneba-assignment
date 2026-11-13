@@ -84,3 +84,11 @@ Backend: существующий AuthTest выполнен в Docker на св�
 **Граница backend:** серверного checkout endpoint/операций пока нет. Несуществующий `/api/checkout` не выдаётся за проверенный защищённый endpoint. Создавать фиктивную операцию ради теста401 не стали; текущая проверка статуса использует реальный защищённый me. Когда серверные операции checkout появятся, они должны быть внутри существующего auth:sanctum + EnsureUserIsActive middleware group, независимо от React guard.
 
 Изменения этой задачи: `src/pages/Auth/Auth.tsx` (одна ссылка отмены), новый `tests/checkout-auth.browser.mjs` и этот README. Backend/API, F01–F04, auth storage, БД, CSS, зависимости и checkout-заглушка не изменены. Рабочая PostgreSQL/Neon не использовались. Commit/push/deploy не выполнялись.
+
+## Current frontend checkout and payment
+
+The earlier checkout-auth section above records the pre-purchase auth milestone. Checkout is now implemented; its auth-boundary fixtures explicitly return a stock-conflict response after login so those tests continue to check account/cart preservation rather than simulate a purchase.
+
+Current flow, read-only API extensions, storage/recovery rules and commands: [docs/frontend-checkout.md](../../docs/frontend-checkout.md).
+
+`purchase-flow.browser.mjs` exercises the actual frontend with controlled API outcomes. `purchase-real.browser.mjs` is opt-in and drives the entire browser flow against an actual disposable Laravel/PostgreSQL backend using `scripts/tests/frontend-checkout-e2e.sh`. It does not consume the working 493 keys. `checkout.test.mjs` covers the quantity-allocation journal and API transport.

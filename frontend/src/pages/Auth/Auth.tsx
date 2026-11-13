@@ -8,7 +8,7 @@ export default function Auth({ mode }: { mode: 'login' | 'register' }) {
   const { user, loading, signedIn } = useAuth()
   const [params] = useSearchParams()
   const raw = params.get('redirect')
-  const destination = raw && ['/checkout', '/orders'].includes(raw.split('?')[0]) ? raw : '/'
+  const destination = raw && (['/checkout', '/orders'].includes(raw.split('?')[0]) || /^\/orders\/[1-9]\d*(?:\/success)?$/.test(raw.split('?')[0])) ? raw : '/'
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')

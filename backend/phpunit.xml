@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+        <env name="DIGITAL_KEY_FINGERPRINT_SECRET" value="checkout-test-only-secret-32-bytes-minimum" force="true"/>
         <env name="APP_ENV" value="testing" force="true"/>
         <server name="APP_ENV" value="testing" force="true"/>
         <server name="FRONTEND_URL" value="https://eneba-assignment-phi.vercel.app" force="true"/>

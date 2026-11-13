@@ -36,6 +36,8 @@ async function setup(t, { authorized = false, cart = sample } = {}) {
     if (url.pathname === '/api/me') { api.meCalls++; await api.me(route) }
     else if (url.pathname === '/api/login') { api.loginCalls++; await api.login(route) }
     else if (url.pathname === '/api/register') await api.register(route)
+    // Keep these auth-boundary fixtures on checkout; purchasing is covered separately.
+    else if (url.pathname === '/api/checkout') await json(route, 409, { message: 'Fixture stock is unavailable.' })
     else if (url.pathname === '/api/offers') {
       const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).map(Number)
       await json(route, 200, { data: ids.map((id) => ({ id, game: { id, name: `Game ${id}`, img: null }, seller: { id, name: `Seller ${id}` }, price: '9.99', currency: 'EUR', quantity: 9, available: true })) })

@@ -85,7 +85,7 @@ test('quantity, addition and removal synchronize and survive reload in both tabs
   await second.goto(base + '/games/2'); await second.getByRole('heading', { name: 'Game 2', exact: true }).waitFor()
   await second.getByRole('button', { name: 'Add to cart', exact: true }).click()
   await page.locator('[data-offer-id="2"]').waitFor(); await ready(page)
-  await page.getByRole('button', { name: 'Remove offer 1', exact: true }).click(); await badge(second, 1)
+  await page.locator('[data-offer-id="1"]').getByRole('button', { name: 'Remove item from cart', exact: true }).click(); await badge(second, 1)
   assert.deepEqual(await savedCart(page), [{ offerId: 2, quantity: 1 }])
   await page.reload(); await ready(page); await second.reload(); await badge(second, 1)
   assert.deepEqual(await savedCart(second), [{ offerId: 2, quantity: 1 }])
@@ -100,7 +100,7 @@ test('20 unique offers reject new offer with message; existing offer and freed s
   const cart = await context.newPage(); await cart.goto(base + '/cart'); await ready(cart)
   await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(cart, 1, 2)
   assert.equal((await savedCart(cart)).length, 20)
-  await cart.getByRole('button', { name: 'Remove offer 20', exact: true }).click(); await badge(page, 20)
+  await cart.locator('[data-offer-id="20"]').getByRole('button', { name: 'Remove item from cart', exact: true }).click(); await badge(page, 20)
   // Badge is quantity sum: 19 positions, including one quantity=2.
   await page.getByRole('button', { name: 'Add to cart', exact: true }).click()
   await cart.locator('[data-offer-id="21"]').waitFor(); assert.equal((await savedCart(cart)).length, 20)

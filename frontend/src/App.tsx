@@ -11,6 +11,9 @@ import AuthProvider from './auth/AuthProvider'
 import RequireAuth from './auth/RequireAuth'
 import Auth from './pages/Auth/Auth'
 import ProtectedPage from './pages/Auth/ProtectedPage'
+import Checkout from './pages/Checkout/Checkout'
+import Payment from './pages/Checkout/Payment'
+import Success from './pages/Checkout/Success'
 
 function RouteScroll() {
   const location = useLocation()
@@ -43,7 +46,9 @@ export default function App() {
               <Route path="/login" element={<Auth key="login" mode="login" />} />
               <Route path="/register" element={<Auth key="register" mode="register" />} />
               <Route element={<RequireAuth />}>
-                <Route path="/checkout" element={<ProtectedPage title="Checkout" />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/orders/:id" element={<Payment />} />
+                <Route path="/orders/:id/success" element={<Success />} />
                 <Route path="/orders" element={<ProtectedPage title="Order history" />} />
               </Route>
             </Routes>
