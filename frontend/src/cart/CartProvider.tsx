@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Game } from '../api/games'
 import { addCartItem, CART_STORAGE_KEY, limitCartQuantities, MAX_CART_ITEMS, parseCart, removeCartItem, setCartQuantity, type CartItem } from './cart'
 import { CartContext } from './context'
+import { recordCartChange, preparePurchase, finishPurchase } from '../checkout/cartPurchases'
 
 export default function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState(() => {
@@ -26,15 +27,18 @@ export default function CartProvider({ children }: { children: ReactNode }) {
     setItems(next)
     if (external) setSyncRevision((value) => value + 1)
   }, [])
-  const persist = useCallback((next: CartItem[], external = false) => {
+  const persist = useCallback((next: CartItem[], external = false, before?: CartItem[]) => {
     const normalized = parseCart(JSON.stringify(next))
     const raw = JSON.stringify(normalized)
+    let saved = true
     try {
+      if (before) recordCartChange(before, normalized)
       if (localStorage.getItem(CART_STORAGE_KEY) !== raw) localStorage.setItem(CART_STORAGE_KEY, raw)
       unsaved.current = false
       setStorageError(false)
-    } catch { unsaved.current = true; setStorageError(true) }
+    } catch { saved = false; unsaved.current = true; setStorageError(true) }
     adopt(normalized, external)
+    return saved
   }, [adopt])
   const commit = useCallback((change: (current: CartItem[]) => CartItem[], expectedSnapshot?: string) => {
     const current = readLatest()
@@ -43,7 +47,7 @@ export default function CartProvider({ children }: { children: ReactNode }) {
       adopt(current, true)
       return
     }
-    persist(change(current))
+    persist(change(current), false, current)
   }, [readLatest, adopt, persist])
   const getSnapshot = useCallback(() => JSON.stringify([changes.current, readLatest()]), [readLatest])
 
@@ -89,8 +93,23 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   const rememberGame = useCallback((game: Game, snapshot: string) => {
     rememberStock(new Map((game.offers ?? []).map((offer) => [offer.id, offer.quantity])), snapshot)
   }, [rememberStock])
-  const value = useMemo(() => ({ items, storageError, syncRevision, addItem, setQuantity, removeItem, rememberGame, rememberStock, getSnapshot }),
-    [items, storageError, syncRevision, addItem, setQuantity, removeItem, rememberGame, rememberStock, getSnapshot])
+  const adjustQuantity = useCallback((offerId: number, delta: number, stock: number) => {
+    commit(current => {
+      const item = current.find(i => i.offerId === offerId)
+      return item ? setCartQuantity(current, offerId, Math.max(1, Math.min(stock, item.quantity + delta)), stock) : current
+    })
+  }, [commit])
+  const completePurchase = useCallback((userId: number, orderId: number, purchased: CartItem[]) => {
+    if (unsaved.current && !persist(readLatest())) throw new Error('Cart storage is unavailable')
+    const current = readLatest()
+    const next = preparePurchase(userId, orderId, current, purchased)
+    if (next) {
+      if (!persist(next, false, current)) throw new Error('Cart storage is unavailable')
+      finishPurchase(userId, orderId)
+    }
+  }, [readLatest, persist])
+  const value = useMemo(() => ({ items, storageError, syncRevision, addItem, setQuantity, adjustQuantity, completePurchase, removeItem, rememberGame, rememberStock, getSnapshot }),
+    [items, storageError, syncRevision, addItem, setQuantity, adjustQuantity, completePurchase, removeItem, rememberGame, rememberStock, getSnapshot])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

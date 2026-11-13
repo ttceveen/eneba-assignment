@@ -5,7 +5,9 @@ namespace Tests\Postgres;
 use App\Models\DigitalKey;
 use App\Models\Game;
 use App\Models\Offer;
+use App\Models\Order;
 use App\Models\Seller;
+use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
@@ -41,6 +43,7 @@ class OfferDigitalKeyTest extends TestCase
             || DB::selectOne("SELECT count(*) AS n FROM information_schema.tables WHERE table_schema = 'public'")->n !== 0) {
             throw new RuntimeException('Tests require a new, empty disposable database.');
         }
+        config(['checkout.key_fingerprint_secret' => 'checkout-test-only-secret-32-bytes-minimum']);
         if (Artisan::call('migrate', ['--force' => true]) !== 0) {
             throw new RuntimeException('Disposable migration failed.');
         }
@@ -124,10 +127,10 @@ class OfferDigitalKeyTest extends TestCase
         $keys = DB::select("SELECT column_name, udt_name, is_nullable, character_maximum_length, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'digital_keys' ORDER BY ordinal_position");
         $this->assertSame(['id', 'seller_id', 'game_id', 'price', 'quantity', 'is_active', 'created_at', 'updated_at'], array_column($offers, 'column_name'));
         $this->assertSame(['int8', 'int8', 'int8', 'numeric', 'int4', 'bool', 'timestamptz', 'timestamptz'], array_column($offers, 'udt_name'));
-        $this->assertSame(['id', 'offer_id', 'key_value', 'status', 'created_at', 'updated_at'], array_column($keys, 'column_name'));
-        $this->assertSame(['int8', 'int8', 'text', 'varchar', 'timestamptz', 'timestamptz'], array_column($keys, 'udt_name'));
+        $this->assertSame(['id', 'offer_id', 'key_value', 'status', 'created_at', 'updated_at', 'order_item_id', 'reserved_until', 'key_fingerprint'], array_column($keys, 'column_name'));
+        $this->assertSame(['int8', 'int8', 'text', 'varchar', 'timestamptz', 'timestamptz', 'int8', 'timestamptz', 'varchar'], array_column($keys, 'udt_name'));
         $this->assertSame(['NO'], array_values(array_unique(array_column($offers, 'is_nullable'))));
-        $this->assertSame(['NO'], array_values(array_unique(array_column($keys, 'is_nullable'))));
+        $this->assertSame(['NO'], array_values(array_unique(array_column(array_slice($keys, 0, 6), 'is_nullable'))));
         $this->assertSame(10, $offers[3]->numeric_precision);
         $this->assertSame(2, $offers[3]->numeric_scale);
         $this->assertSame(20, $keys[3]->character_maximum_length);
@@ -142,7 +145,7 @@ class OfferDigitalKeyTest extends TestCase
         $offers = collect(Schema::getIndexes('offers'))->keyBy('name');
         $keys = collect(Schema::getIndexes('digital_keys'))->keyBy('name');
         $this->assertEqualsCanonicalizing(['offers_pkey', 'offers_seller_id_game_id_unique', 'idx_offers_available_game_price'], $offers->keys()->all());
-        $this->assertEqualsCanonicalizing(['digital_keys_pkey', 'idx_digital_keys_available'], $keys->keys()->all());
+        $this->assertEqualsCanonicalizing(['digital_keys_pkey', 'idx_digital_keys_available', 'digital_keys_key_fingerprint_unique', 'digital_keys_order_item_id_offer_id_index', 'idx_digital_keys_expired_reservations'], $keys->keys()->all());
         $this->assertSame(['seller_id', 'game_id'], $offers['offers_seller_id_game_id_unique']['columns']);
         $this->assertTrue($offers['offers_seller_id_game_id_unique']['unique']);
         $this->assertSame(['game_id', 'price'], $offers['idx_offers_available_game_price']['columns']);
@@ -153,9 +156,9 @@ class OfferDigitalKeyTest extends TestCase
         $this->assertStringContainsString('available', $predicates['idx_digital_keys_available']->predicate);
         $this->assertStringContainsString('status', $predicates['idx_digital_keys_available']->predicate);
         $this->assertCount(2, Schema::getForeignKeys('offers'));
-        $this->assertCount(1, Schema::getForeignKeys('digital_keys'));
+        $this->assertCount(2, Schema::getForeignKeys('digital_keys'));
         $checks = DB::select("SELECT conname FROM pg_constraint WHERE conrelid IN ('offers'::regclass, 'digital_keys'::regclass) AND contype = 'c'");
-        $this->assertEqualsCanonicalizing(['offers_price_nonnegative', 'offers_quantity_nonnegative', 'digital_keys_status_valid'], array_column($checks, 'conname'));
+        $this->assertEqualsCanonicalizing(['offers_price_nonnegative', 'offers_quantity_nonnegative', 'digital_keys_status_valid', 'digital_keys_assignment_valid', 'digital_keys_fingerprint_valid'], array_column($checks, 'conname'));
     }
 
     public function test_uniqueness_foreign_keys_and_inverse_relationships(): void
@@ -185,8 +188,11 @@ class OfferDigitalKeyTest extends TestCase
         $this->assertTrue($first->offer->is($offer));
         $this->assertSame('available', $first->status);
         $this->assertSame('available', $first->fresh()->status);
+        $user = User::factory()->create();
+        $order = Order::create(['user_id' => $user->id, 'status' => 'pending_payment', 'total_amount' => '12.50', 'reserved_until' => now()->addMinutes(15)]);
+        $item = $order->items()->create(['offer_id' => $offer->id, 'quantity' => 4, 'unit_price' => '12.50']);
         foreach (['available', 'reserved', 'sold'] as $status) {
-            $key = $offer->digitalKeys()->create(['key_value' => 'TEST-FIXTURE', 'status' => $status]);
+            $key = $offer->digitalKeys()->create(['key_value' => 'TEST-FIXTURE-'.$status, 'status' => $status, 'order_item_id' => $status === 'available' ? null : $item->id, 'reserved_until' => $status === 'reserved' ? now()->addMinutes(15) : null]);
             $this->assertSame($status, $key->fresh()->status);
         }
         $this->assertSame(4, $offer->digitalKeys()->count());
@@ -194,7 +200,7 @@ class OfferDigitalKeyTest extends TestCase
         $this->assertFalse(array_key_exists('key_value', json_decode($first->toJson(), true)));
         $this->assertFalse(array_key_exists('key_value', $offer->load('digitalKeys')->toArray()['digital_keys'][0]));
         $this->assertSame($before, $offer->fresh()->getRawOriginal());
-        $first->update(['status' => 'sold']);
+        $first->update(['status' => 'sold', 'order_item_id' => $item->id]);
         $this->assertSame($before, $offer->fresh()->getRawOriginal());
         $this->rejected(fn () => $offer->delete(), '23503');
         $first->delete();
@@ -212,7 +218,7 @@ class OfferDigitalKeyTest extends TestCase
         ]);
         $this->assertTrue(Offer::findOrFail($id)->is_active);
         $keyId = DB::table('digital_keys')->insertGetId([
-            'offer_id' => $id, 'key_value' => Crypt::encryptString('TEST-FIXTURE'), 'created_at' => now(), 'updated_at' => now(),
+            'offer_id' => $id, 'key_value' => Crypt::encryptString('TEST-FIXTURE'), 'key_fingerprint' => DigitalKey::fingerprint('TEST-FIXTURE'), 'created_at' => now(), 'updated_at' => now(),
         ]);
         $this->assertSame('available', DigitalKey::findOrFail($keyId)->status);
     }
@@ -222,6 +228,10 @@ class OfferDigitalKeyTest extends TestCase
         $offer = $this->offer();
         $keys = require database_path('migrations/2026_11_12_000006_create_digital_keys_table.php');
         $offers = require database_path('migrations/2026_11_12_000005_create_offers_table.php');
+        $checkoutKeys = require database_path('migrations/2026_11_13_000002_extend_digital_keys_for_checkout.php');
+        $checkout = require database_path('migrations/2026_11_13_000001_create_checkout_tables.php');
+        $checkoutKeys->down();
+        $checkout->down();
         $keys->down();
         $offers->down();
         $this->assertFalse(Schema::hasTable('digital_keys'));
@@ -234,5 +244,7 @@ class OfferDigitalKeyTest extends TestCase
         $this->assertTrue(Schema::hasTable('digital_keys'));
         $this->assertCount(3, Schema::getIndexes('offers'));
         $this->assertCount(2, Schema::getIndexes('digital_keys'));
+        $checkout->up();
+        $checkoutKeys->up();
     }
 }

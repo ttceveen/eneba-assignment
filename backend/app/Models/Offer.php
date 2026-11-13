@@ -31,4 +31,9 @@ class Offer extends Model
     {
         return $this->hasMany(DigitalKey::class);
     }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
 }

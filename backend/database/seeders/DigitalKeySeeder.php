@@ -17,7 +17,7 @@ class DigitalKeySeeder extends Seeder
             $byOffer = $keys->groupBy('offer_id');
             $used = [];
             foreach ($keys as $key) {
-                $used[hash('sha256', $key->key_value)] = true;
+                $used[DigitalKey::fingerprint($key->key_value)] = true;
             }
 
             foreach (Offer::orderBy('id')->get() as $offer) {
@@ -29,7 +29,7 @@ class DigitalKeySeeder extends Seeder
                 $count = $existing->count();
                 for ($slot = 1; $count < $offer->quantity; $slot++) {
                     $value = sprintf('TEST-NOT-VALID-OFFER-%d-KEY-%d', $offer->id, $slot);
-                    $hash = hash('sha256', $value);
+                    $hash = DigitalKey::fingerprint($value);
                     if (isset($used[$hash])) {
                         continue;
                     }

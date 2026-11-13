@@ -53,7 +53,7 @@ class DigitalKeyTest extends TestCase
         $offer = $this->offer();
         $before = $offer->fresh()->getRawOriginal();
         foreach (['available', 'reserved', 'sold'] as $status) {
-            $key = $offer->digitalKeys()->create(['key_value' => 'TEST-FIXTURE', 'status' => $status]);
+            $key = $offer->digitalKeys()->create(['key_value' => 'TEST-FIXTURE-'.$status, 'status' => $status]);
             $this->assertSame($status, $key->fresh()->status);
         }
         $this->assertSame(3, $offer->digitalKeys()->count());
@@ -72,7 +72,7 @@ class DigitalKeyTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
         $this->assertSame('available', DigitalKey::findOrFail($id)->status);
-        $this->assertCount(1, Schema::getForeignKeys('digital_keys'));
+        $this->assertCount(2, Schema::getForeignKeys('digital_keys'));
         $this->expectException(QueryException::class);
         DigitalKey::create(['offer_id' => 999999, 'key_value' => 'TEST-FIXTURE']);
     }

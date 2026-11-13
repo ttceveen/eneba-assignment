@@ -49,7 +49,7 @@ class OfferIndexTest extends TestCase
     {
         $offer = $this->offer();
         foreach (['available', 'reserved', 'sold'] as $status) {
-            DigitalKey::create(['offer_id' => $offer->id, 'key_value' => 'SECRET-FIXTURE', 'status' => $status]);
+            DigitalKey::create(['offer_id' => $offer->id, 'key_value' => 'SECRET-FIXTURE-'.$status, 'status' => $status]);
         }
         $url = '/api/offers?ids='.$offer->id;
         $response = $this->getJson($url)->assertOk()->assertJsonPath('data.0.quantity', 1)->assertJsonPath('data.0.available', true);

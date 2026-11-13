@@ -10,7 +10,7 @@ type CartData = { key: string; status: 'loading' | 'error' }
   | { key: string; status: 'ready'; offers: Map<number, CartOffer> }
 
 export default function Cart() {
-  const { items, storageError, setQuantity, removeItem, rememberStock, getSnapshot, syncRevision } = useCart()
+  const { items, storageError, adjustQuantity, removeItem, rememberStock, getSnapshot, syncRevision } = useCart()
   const [revision, setRevision] = useState(0)
   const ids = items.map((item) => item.offerId).sort((a, b) => a - b).join(',')
   const requestKey = `${ids}:${revision}:${syncRevision}`
@@ -86,15 +86,19 @@ export default function Cart() {
                           </>
                         )}
                       </div>
-                      <button className={styles.remove} type="button" aria-label={`Remove offer ${item.offerId}`} onClick={() => removeItem(item.offerId)}>Remove</button>
+                      <button className={styles.remove} type="button" aria-label="Remove item from cart" onClick={() => removeItem(item.offerId)}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                          <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" />
+                        </svg>
+                      </button>
                       <div className={styles.controls}>
                         <div><span className={styles.label}>Unit price</span><span aria-label={`Unit price for offer ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price)) : '—'}</span></div>
                         <div>
                           <span className={styles.label}>Quantity</span>
                           <div className={styles.quantity}>
-                            <button type="button" aria-label={`Decrease quantity for offer ${item.offerId}`} disabled={!detail || quantity <= 1} onClick={() => setQuantity(item.offerId, quantity - 1, detail?.offer.quantity)}>−</button>
+                            <button type="button" aria-label={`Decrease quantity for offer ${item.offerId}`} disabled={!detail || quantity <= 1} onClick={() => adjustQuantity(item.offerId, -1, detail?.offer.quantity ?? 0)}>−</button>
                             <output aria-label={`Quantity for offer ${item.offerId}`}>{quantity}</output>
-                            <button type="button" aria-label={`Increase quantity for offer ${item.offerId}`} disabled={!detail || quantity >= detail.offer.quantity} onClick={() => setQuantity(item.offerId, quantity + 1, detail?.offer.quantity)}>+</button>
+                            <button type="button" aria-label={`Increase quantity for offer ${item.offerId}`} disabled={!detail || quantity >= detail.offer.quantity} onClick={() => adjustQuantity(item.offerId, 1, detail?.offer.quantity ?? 0)}>+</button>
                           </div>
                         </div>
                         <div><span className={styles.label}>Item total</span><strong aria-label={`Item total for offer ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price) * BigInt(quantity)) : '—'}</strong></div>
