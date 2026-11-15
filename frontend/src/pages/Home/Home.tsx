@@ -13,6 +13,7 @@ type CatalogState =
 
 function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: CatalogSort; query: string; onPageChange: (page: number) => void }) {
   const [catalog, setCatalog] = useState<CatalogState>({ status: 'loading' })
+  const [retry, setRetry] = useState(0)
   const loaded = catalog.status === 'success'
   const { mainRef, remember, restoring: pendingRestoration, mainHeight } = useCatalogScroll(loaded)
   const restoring = pendingRestoration && catalog.status !== 'error'
@@ -25,17 +26,19 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
 
   useEffect(() => {
     const controller = new AbortController()
-    const request = query ? searchGames(page, query, controller.signal) : getGames(page, sort, controller.signal)
-    request
-      .then((result) => {
+    void (async () => {
+      await Promise.resolve()
+      if (controller.signal.aborted) return
+      try {
+        const result = await (query ? searchGames(page, query, controller.signal) : getGames(page, sort, controller.signal))
         if (!controller.signal.aborted) setCatalog({ status: 'success', page: result })
-      })
-      .catch(() => {
+      } catch {
         if (!controller.signal.aborted) setCatalog({ status: 'error' })
-      })
+      }
+    })()
 
     return () => controller.abort()
-  }, [page, sort, query])
+  }, [page, sort, query, retry])
 
   return (
     <main className={styles.main} id="games" ref={mainRef}
@@ -44,7 +47,11 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
       <h1 className={styles.heading}>{query ? `Search results for “${query}”` : 'Games'}</h1>
       {catalog.status === 'loading' && <p role="status" className={restoring ? styles.restoringStatus : undefined}>Loading games...</p>}
       <div style={{ visibility: restoring && loaded ? 'hidden' : undefined }}>
-        {catalog.status === 'error' && <p role="alert">Failed to load games.</p>}
+        {catalog.status === 'error' && <p role="alert">Failed to load games.<button className={styles.retry} type="button" onClick={event => {
+          event.currentTarget.disabled = true
+          setCatalog({ status: 'loading' })
+          setRetry(value => value + 1)
+        }}>Retry</button></p>}
         {catalog.status === 'success' && (
           <>
             {catalog.page.data.length === 0 ? <p role="status">{query ? 'No games found.' : 'No games available.'}</p> : (

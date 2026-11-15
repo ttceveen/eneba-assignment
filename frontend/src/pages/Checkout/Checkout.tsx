@@ -37,12 +37,12 @@ export default function Checkout() {
         saveSession(checkoutKey(user.id), { ...attempt, orderId: order.id })
         navigate(`/orders/${order.id}`, { replace: true })
       } catch (error) {
-        if (!controller.signal.aborted) setState({ message: checkoutMessage(error), failed: true, definitive: error instanceof CheckoutError && [409, 422].includes(error.status) })
+        if (!controller.signal.aborted) setState({ message: checkoutMessage(error, 'create-order'), failed: true, definitive: error instanceof CheckoutError && [409, 422].includes(error.status) })
       }
     })()
     return () => controller.abort()
   }, [user, getSnapshot, run, navigate, retry])
-  return <main className={styles.main}><h1>Checkout</h1><section className={styles.panel}>
+  return <main className={`${styles.main} ${styles.redesign}`}><h1>Checkout</h1><section className={styles.panel}>
     <p role={state.failed ? 'alert' : 'status'}>{state.message}</p>
     {state.failed && <button className={styles.primary} onClick={() => { setState({ message: 'Checking the same checkout request...', failed: false, definitive: false }); setRetry(v => v + 1) }}>Retry checkout</button>}
     <Link to="/cart" onClick={() => { if (state.definitive && user) sessionStorage.removeItem(checkoutKey(user.id)) }}>Back to cart</Link>

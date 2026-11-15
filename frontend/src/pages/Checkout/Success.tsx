@@ -17,6 +17,7 @@ export default function Success() {
   useEffect(() => {
     const controller = new AbortController()
     void (async () => {
+      let errorContext: 'load-order' | 'load-keys' = 'load-order'
       try {
         const current = await run(token => getOrder(token, id, controller.signal))
         if (controller.signal.aborted || !user) return
@@ -27,9 +28,10 @@ export default function Success() {
           if (readSession<CheckoutAttempt>(checkoutKey(user.id))?.orderId === id) sessionStorage.removeItem(checkoutKey(user.id))
           setCartNotice('')
         } catch { setCartNotice('Your purchase is paid, but browser storage prevented the cart update. Your keys are still available below.') }
+        errorContext = 'load-keys'
         const delivered = await run(token => getOrderKeys(token, id, controller.signal))
         if (!controller.signal.aborted) { setKeys(delivered); setMessage('') }
-      } catch (error) { if (!controller.signal.aborted) setMessage(checkoutMessage(error)) }
+      } catch (error) { if (!controller.signal.aborted) setMessage(checkoutMessage(error, errorContext)) }
     })()
     return () => controller.abort()
   }, [id, user, run, navigate, completePurchase, retry])
@@ -37,11 +39,11 @@ export default function Success() {
     try { await navigator.clipboard.writeText(value); setCopied(id) }
     catch { setMessage('Copy is unavailable. Select and copy the key manually.') }
   }
-  return <main className={styles.main}><h1>Purchase successful</h1>
+  return <main className={styles.main}><h1>{order?.id === id && order.status === 'paid' ? message ? 'Payment confirmed' : 'Purchase successful' : message ? 'Purchase could not be verified' : 'Checking purchase'}</h1>
     {!order && !message && <p role="status">Checking your purchase...</p>}
     {order && <Summary order={order} />}
     {cartNotice && <p role="alert" className={styles.notice}>{cartNotice}</p>}
-    {message && <p role="alert" className={styles.notice}>{message} <button onClick={() => setRetry(v => v + 1)}>Retry loading keys</button></p>}
+    {message && <p role="alert" className={styles.notice}>{message} <button onClick={() => setRetry(v => v + 1)}>{order ? 'Retry loading keys' : 'Retry loading order'}</button></p>}
     {order && !keys && !message && <p role="status">Loading purchased keys...</p>}
     {keys && <section className={styles.panel} aria-label="Purchased keys"><h2>Your digital keys</h2>{keys.items.map(item => <div key={item.order_item_id}>
       <h3>{order?.items.find(i => i.id === item.order_item_id)?.game.name ?? 'Purchased game'}</h3>

@@ -10,7 +10,7 @@ type CartData = { key: string; status: 'loading' | 'error' }
   | { key: string; status: 'ready'; offers: Map<number, CartOffer> }
 
 export default function Cart() {
-  const { items, storageError, adjustQuantity, removeItem, rememberStock, getSnapshot, syncRevision } = useCart()
+  const { items, stockChanges, storageError, adjustQuantity, removeItem, rememberStock, getSnapshot, syncRevision } = useCart()
   const [revision, setRevision] = useState(0)
   const ids = items.map((item) => item.offerId).sort((a, b) => a - b).join(',')
   const requestKey = `${ids}:${revision}:${syncRevision}`
@@ -78,6 +78,7 @@ export default function Cart() {
                             <h2><Link to={`/games/${detail.game.id}`}>{detail.game.name}</Link></h2>
                             <p>Seller: {detail.offer.seller.name}</p>
                             <p className={styles.stock}>Available: {detail.offer.quantity}</p>
+                            {stockChanges.filter(change => change.offerId === item.offerId && change.to === quantity).map(change => <p key={change.offerId} role="status">Available stock changed. Quantity updated from {change.from} to {change.to}.</p>)}
                           </>
                         ) : (
                           <>
@@ -113,7 +114,10 @@ export default function Cart() {
               <div className={styles.total}><span>Total</span><strong aria-label="Cart total">{ready ? formatCents(total) : '—'}</strong></div>
               {ready && !allAvailable && <p className={styles.unavailable}>Unavailable offers are excluded from the total. Remove them before continuing.</p>}
               <p>Adding to cart does not reserve keys. Prices and availability will be checked by the server at checkout.</p>
-              <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => navigate('/checkout')}>Proceed to checkout</button>
+              <div className={styles.checkoutBar} aria-label="Checkout actions">
+                <div className={styles.mobileTotal}><span>Total</span><strong aria-label="Mobile cart total">{ready ? formatCents(total) : '—'}</strong></div>
+                <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => navigate('/checkout')}>Proceed to checkout</button>
+              </div>
               <button type="button" className={styles.refresh} onClick={() => setRevision((value) => value + 1)}>Refresh prices</button>
               <Link className={styles.continue} to="/">Continue shopping</Link>
             </aside>

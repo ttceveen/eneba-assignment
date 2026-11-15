@@ -34,7 +34,11 @@ async function setup(t, options = {}) {
     calls.push(call)
     if (path === '/api/me') return req.headers().authorization ? json(route, 200, { data: user }) : json(route, 401, {})
     if (path === '/api/login' || path === '/api/register') return json(route, 200, { data: user, token: 'fixture-token' })
-    if (path === '/api/orders/1') return json(route, 200, { data: order })
+    if (path === '/api/orders/1') {
+      if (state.orderHold) await state.orderHold
+      if (state.orderError) return json(route, state.orderError, { message: 'private-provider-secret' })
+      return json(route, 200, { data: order })
+    }
     if (path === '/api/orders/1/payments') {
       let payment = order.payments.find(p => p.idempotency_key === call.key)
       if (!payment) { payment = makePayment(call.body.provider, call.key); order.payments = [payment] }
@@ -60,6 +64,7 @@ async function setup(t, options = {}) {
     }
     if (path === '/api/orders/1/keys') {
       assert.equal(order.status, 'paid')
+      if (state.keysError) return json(route, state.keysError, { message: 'private-provider-secret' })
       return json(route, 200, { data: { order_id: 1, items: [{ order_item_id: 1, offer_id: 1, keys: [{ id: 1, key_value: 'SYNTHETIC-PAYPAL-KEY' }] }] } })
     }
     if (path === '/api/orders/1/cancel') { order.status = 'cancelled'; return json(route, 200, { data: order }) }
@@ -75,7 +80,7 @@ async function setup(t, options = {}) {
 const cart = page => page.evaluate(() => JSON.parse(localStorage.getItem('eneba:cart')))
 const confirms = calls => calls.filter(c => c.path === '/api/payments/paypal/confirm')
 const creates = calls => calls.filter(c => c.path === '/api/orders/1/payments')
-const repeat = page => page.getByRole('button', { name: 'Repeat payment check', exact: true })
+const repeat = page => page.getByRole('button', { name: 'Confirm PayPal payment', exact: true })
 const goReturn = page => page.goto(base + '/paypal/return?token=ORDER123')
 async function choosePayPal(page) {
   await page.goto(base + '/orders/1')
@@ -96,7 +101,7 @@ test('PayPal selection creates one payment and redirects only to Sandbox without
   await page.getByRole('heading', { name: 'PayPal checkout interrupted' }).waitFor()
   assert.deepEqual(await cart(page), initialCart)
   await page.getByRole('link', { name: 'Back to checkout', exact: true }).click()
-  await page.getByRole('button', { name: 'Continue PayPal Sandbox checkout', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).click()
   await page.waitForURL(approval)
   assert.equal(creates(calls).length, 1)
   assert.equal(confirms(calls).length, 0)
@@ -133,7 +138,7 @@ test('missing, invalid and duplicate tokens never call confirmation and preserve
 test('pending preserves cart and manual retry uses the same ID without new attempts', async t => {
   const { page, calls, state } = await setup(t, { confirm: 'pending' })
   await goReturn(page)
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   assert.deepEqual(await cart(page), initialCart)
   assert.equal(confirms(calls).length, 1)
   state.confirm = 'succeeded'
@@ -146,7 +151,7 @@ for (const error of ['network', 502, 404, 409]) test(`return error ${error} is s
   const { page, calls, state } = await setup(t, { confirmError: error })
   await goReturn(page)
   await repeat(page).waitFor()
-  await page.getByRole('status').filter({ hasText: /Unable|not available|Stock/ }).waitFor()
+  await page.getByRole('alert').filter({ hasText: /unknown|not available|Stock/ }).waitFor()
   assert.equal((await page.textContent('body')).includes('private-provider-secret'), false)
   assert.deepEqual(await cart(page), initialCart)
   assert.equal(confirms(calls).length, 1)
@@ -158,13 +163,13 @@ for (const error of ['network', 502, 404, 409]) test(`return error ${error} is s
 test('double click on retry cannot duplicate an in-flight confirmation', async t => {
   const { page, calls, state } = await setup(t, { confirm: 'pending' })
   await goReturn(page)
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   let release
   state.hold = new Promise(resolve => { release = resolve })
   await repeat(page).evaluate(button => { button.click(); button.click() })
-  await page.getByRole('button', { name: 'Checking payment...', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Confirming PayPal payment...', exact: true }).waitFor()
   release()
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   assert.equal(confirms(calls).length, 2)
 })
 test('login and register preserve the PayPal return path and token', async t => {
@@ -179,7 +184,7 @@ test('login and register preserve the PayPal return path and token', async t => 
   await page.getByLabel('Email', { exact: true }).fill('fixture@example.test')
   await page.getByLabel('Password', { exact: true }).fill('fixture-password')
   await page.getByRole('button', { name: 'Create account', exact: true }).click()
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   assert.equal(new URL(page.url()).pathname, '/paypal/return')
   assert.equal(confirms(calls).length, 1)
   assert.deepEqual(await cart(page), initialCart)
@@ -208,8 +213,8 @@ test('existing PayPal attempt can be checked after the initial reservation deadl
   order.payments = [makePayment()]
   order.reserved_until = new Date(Date.now() - 1000).toISOString()
   await page.goto(base + '/orders/1')
-  await page.getByRole('link', { name: 'Check PayPal payment status', exact: true }).click()
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('button', { name: 'Confirm PayPal payment', exact: true }).click()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   assert.equal(creates(calls).length, 0)
   assert.equal(confirms(calls).length, 1)
 })
@@ -217,7 +222,7 @@ test('lost PayPal initialization retries the same pending attempt and idempotenc
   const { page, calls } = await setup(t, { creationLoss: true })
   await choosePayPal(page)
   await page.getByRole('button', { name: 'Pay with PayPal Sandbox', exact: true }).click()
-  await page.getByRole('alert').filter({ hasText: 'Unable to confirm' }).waitFor()
+  await page.getByRole('alert').filter({ hasText: 'Unable to start payment' }).waitFor()
   await page.getByRole('button', { name: 'Check payment status', exact: true }).click()
   await page.getByRole('button', { name: 'Pay with PayPal Sandbox', exact: true }).click()
   await page.waitForURL(approval)
@@ -252,9 +257,9 @@ test('expired Bearer token returns through login to the same PayPal confirmation
 test('pending confirmation preserves approval URL so the buyer can continue the same PayPal Order', async t => {
   const { page, calls } = await setup(t, { confirm: 'pending' })
   await goReturn(page)
-  await page.getByRole('status').filter({ hasText: 'Платёж ещё обрабатывается' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
   assert.deepEqual(await cart(page), initialCart)
-  await page.getByRole('button', { name: 'Continue PayPal Sandbox checkout', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).click()
   await page.waitForURL(approval)
   assert.equal(creates(calls).length, 0)
   assert.equal(confirms(calls).length, 1)
@@ -265,7 +270,7 @@ test('server-pending protected PayPal order can continue approval after the init
   order.payments = [makePayment()]
   order.reserved_until = new Date(Date.now() - 1000).toISOString()
   await page.goto(base + '/orders/1')
-  const button = page.getByRole('button', { name: 'Continue PayPal Sandbox checkout', exact: true })
+  const button = page.getByRole('button', { name: 'Continue in PayPal', exact: true })
   await button.waitFor()
   assert.equal(await button.isEnabled(), true)
   assert.deepEqual(await cart(page), initialCart)
@@ -273,4 +278,115 @@ test('server-pending protected PayPal order can continue approval after the init
   await page.waitForURL(approval)
   assert.equal(creates(calls).length, 0)
   assert.equal(confirms(calls).length, 0)
+})
+
+for (const saved of [null, 99]) test(`PayPal response order overrides ${saved === null ? 'missing' : 'stale'} checkout context`, async t => {
+  const { page, calls, state, order } = await setup(t, { confirm: 'pending' })
+  await page.goto(base + '/cart')
+  await page.evaluate(saved => {
+    if (saved === null) sessionStorage.removeItem('eneba:checkout:1')
+    else sessionStorage.setItem('eneba:checkout:1', JSON.stringify({ orderId: saved }))
+  }, saved)
+  let release
+  state.hold = new Promise(resolve => { release = resolve })
+  t.after(() => release())
+  await goReturn(page)
+  await page.getByRole('button', { name: 'Confirming PayPal payment...', exact: true }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Back to checkout', exact: true }).getAttribute('href'), saved === null ? '/checkout' : '/orders/99')
+  release()
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Back to checkout', exact: true }).getAttribute('href'), `/orders/${order.id}`)
+  state.confirm = 'failed'
+  await repeat(page).click()
+  await page.getByRole('alert').filter({ hasText: 'Payment has not been confirmed.' }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'Back to checkout', exact: true }).getAttribute('href'), `/orders/${order.id}`)
+  assert.equal(await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).count(), 0)
+  assert.equal(confirms(calls).length, 2)
+  assert.equal(creates(calls).length, 0)
+})
+
+test('pending PayPal has one explicit confirmation action; continuation never confirms', async t => {
+  const { page, order, makePayment, calls } = await setup(t, { confirm: 'pending' })
+  order.payments = [makePayment()]
+  await page.goto(base + '/orders/1')
+  await page.getByRole('button', { name: 'Confirm PayPal payment', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Confirm PayPal payment', exact: true }).count(), 1)
+  assert.equal(await page.getByRole('link', { name: 'Check PayPal payment status', exact: true }).count(), 0)
+  assert.equal(confirms(calls).length, 0)
+  await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).click()
+  await page.waitForURL(approval)
+  assert.equal(confirms(calls).length, 0)
+  await page.goto(base + '/orders/1')
+  await page.getByRole('button', { name: 'Confirm PayPal payment', exact: true }).evaluate(button => { button.click(); button.click() })
+  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet' }).waitFor()
+  assert.equal(confirms(calls).length, 1)
+  assert.equal(creates(calls).length, 0)
+})
+
+test('expired PayPal timer finishes refreshing and displays only the known server state', async t => {
+  const { page, order, makePayment, calls, state } = await setup(t)
+  order.payments = [makePayment()]
+  await page.clock.install({ time: new Date() })
+  order.reserved_until = new Date(Date.now() + 60000).toISOString()
+  await page.goto(base + '/orders/1')
+  await page.getByRole('timer').waitFor()
+  const before = calls.filter(c => c.path === '/api/orders/1').length
+  let release
+  state.orderHold = new Promise(resolve => { release = resolve })
+  t.after(() => release())
+  await page.clock.fastForward(61000)
+  await page.getByRole('status').filter({ hasText: 'Refreshing order status...' }).waitFor()
+  release()
+  await page.getByRole('status').filter({ hasText: 'The server still reports this order as awaiting payment.' }).waitFor()
+  assert.equal(await page.getByRole('timer').count(), 0)
+  assert.equal(await page.getByText('Refreshing order status...', { exact: true }).count(), 0)
+  await page.clock.fastForward(60000)
+  assert.equal(calls.filter(c => c.path === '/api/orders/1').length, before + 1)
+  assert.equal(confirms(calls).length, 0)
+  assert.equal(creates(calls).length, 0)
+})
+
+test('Success waits for server paid before showing success or requesting keys', async t => {
+  const { page, state, order, calls } = await setup(t)
+  order.status = 'paid'
+  let release
+  state.orderHold = new Promise(resolve => { release = resolve })
+  t.after(() => release())
+  await page.goto(base + '/orders/1/success')
+  await page.getByRole('heading', { name: 'Checking purchase', exact: true }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Purchase successful', exact: true }).count(), 0)
+  assert.equal(calls.some(c => c.path.endsWith('/keys')), false)
+  release()
+  await page.getByRole('heading', { name: 'Purchase successful', exact: true }).waitFor()
+  await page.getByText('SYNTHETIC-PAYPAL-KEY', { exact: true }).waitFor()
+  assert.equal(confirms(calls).length, 0)
+})
+
+test('Success order error is an alert without a success heading and retry only loads data', async t => {
+  const { page, state, order, calls } = await setup(t, { orderError: 502 })
+  order.status = 'paid'
+  await page.goto(base + '/orders/1/success')
+  await page.getByRole('alert').filter({ hasText: 'Unable to load your order.' }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Purchase successful', exact: true }).count(), 0)
+  assert.equal(calls.some(c => c.path.endsWith('/keys')), false)
+  state.orderError = null
+  await page.getByRole('button', { name: 'Retry loading order', exact: true }).click()
+  await page.getByText('SYNTHETIC-PAYPAL-KEY', { exact: true }).waitFor()
+  assert.equal(confirms(calls).length, 0)
+  assert.equal(creates(calls).length, 0)
+})
+
+test('Success key error keeps payment confirmed and retries delivery without payment requests', async t => {
+  const { page, state, order, calls } = await setup(t, { keysError: 502 })
+  order.status = 'paid'
+  await page.goto(base + '/orders/1/success')
+  await page.getByRole('alert').filter({ hasText: 'Your payment is confirmed, but your digital keys could not be loaded.' }).waitFor()
+  assert.equal(await page.getByRole('heading', { name: 'Purchase successful', exact: true }).count(), 0)
+  await page.getByRole('heading', { name: 'Payment confirmed', exact: true }).waitFor()
+  state.keysError = null
+  await page.getByRole('button', { name: 'Retry loading keys', exact: true }).click()
+  await page.getByText('SYNTHETIC-PAYPAL-KEY', { exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Purchase successful', exact: true }).waitFor()
+  assert.equal(confirms(calls).length, 0)
+  assert.equal(creates(calls).length, 0)
 })
