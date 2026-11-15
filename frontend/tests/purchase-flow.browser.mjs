@@ -41,7 +41,7 @@ async function setup(t, saved = [{ offerId: 1, quantity: 1 }]) {
     if (path === '/api/orders/1/payments') {
       paymentCalls.push(request.headers()['idempotency-key'])
       let payment = state.payments.find(p => p.idempotency_key === request.headers()['idempotency-key'])
-      if (!payment) { payment = { id: state.payments.length + 1, order_id: 1, provider: 'fake_card', idempotency_key: request.headers()['idempotency-key'], status: 'pending', amount: '9.99', currency: 'EUR', error_code: null, error_message: null }; state.payments.push(payment) }
+      if (!payment) { payment = { id: state.payments.length + 1, order_id: 1, provider: 'fake_card', external_id: null, redirect_url: null, idempotency_key: request.headers()['idempotency-key'], status: 'pending', amount: '9.99', currency: 'EUR', error_code: null, error_message: null }; state.payments.push(payment) }
       if (state.paymentLoss) { state.paymentLoss = false; return fulfill(route, 503, {}) }
       return fulfill(route, 201, { data: payment })
     }

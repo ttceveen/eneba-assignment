@@ -1,7 +1,8 @@
+import type { PaymentProvider } from '../api/checkout'
 import { parseCart, type CartItem } from '../cart/cart'
 
 export type CheckoutAttempt = { key: string; items: CartItem[]; orderId?: number; tracked?: boolean }
-export type PaymentAttempt = { key: string; desired: 'success' | 'failure'; paymentId?: number }
+export type PaymentAttempt = { key: string; provider?: PaymentProvider; desired: 'success' | 'failure'; paymentId?: number }
 export function readSession<T>(key: string): T | null {
   try { return JSON.parse(sessionStorage.getItem(key) ?? 'null') as T | null } catch { return null }
 }

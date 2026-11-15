@@ -26,6 +26,16 @@ class PaymentController extends Controller
         return (new PaymentResource($payment))->response()->setStatusCode(201);
     }
 
+    public function confirm(Request $request, PaymentService $payments): PaymentResource
+    {
+        $data = Validator::make(['input' => $request->all()], [
+            'input' => ['required', 'array:paypal_order_id'],
+            'input.paypal_order_id' => ['required', 'string', 'max:36', 'regex:/^[A-Z0-9]{1,36}$/D'],
+        ])->validate();
+
+        return new PaymentResource($payments->confirm($request->user(), $data['input']['paypal_order_id']));
+    }
+
     public function simulate(Request $request, string $payment, PaymentService $payments): PaymentResource
     {
         $data = Validator::make(['input' => $request->all()], ['input' => ['required', 'array:result'], 'input.result' => ['required', 'in:success,failure']])->validate();

@@ -1,7 +1,8 @@
 import { getApiBaseUrl, getResponse } from './games'
 import type { CartItem } from '../cart/cart'
 
-export type Payment = { id: number; order_id: number; provider: string; idempotency_key: string | null; status: 'pending' | 'succeeded' | 'failed' | 'cancelled'; amount: string; currency: string; error_code: string | null; error_message: string | null }
+export type PaymentProvider = 'fake_card' | 'paypal'
+export type Payment = { id: number; order_id: number; provider: PaymentProvider; external_id: string | null; redirect_url: string | null; idempotency_key: string | null; status: 'pending' | 'succeeded' | 'failed' | 'cancelled'; amount: string; currency: string; error_code: string | null; error_message: string | null }
 export type OrderItem = { id: number; offer_id: number; quantity: number; unit_price: string; game: { id: number; name: string; img: string | null }; seller: { id: number; name: string } }
 export type Order = { id: number; status: 'pending_payment' | 'paid' | 'expired' | 'cancelled'; items: OrderItem[]; total_amount: string; currency: string; reserved_until: string; payments: Payment[] }
 export type OrderKeys = { order_id: number; items: { order_item_id: number; offer_id: number; keys: { id: number; key_value: string }[] }[] }
@@ -22,13 +23,27 @@ async function request<T>(token: string, path: string, signal: AbortSignal, meth
 export const createOrder = (token: string, items: CartItem[], key: string, signal: AbortSignal) => request<Order>(token, '/checkout', signal, 'POST', { items: items.map(item => ({ offer_id: item.offerId, quantity: item.quantity })) }, key).then(checkedOrder)
 export const getOrder = (token: string, id: number, signal: AbortSignal) => request<Order>(token, `/orders/${id}`, signal).then(checkedOrder)
 export const cancelOrder = (token: string, id: number, signal: AbortSignal) => request<Order>(token, `/orders/${id}/cancel`, signal, 'POST').then(checkedOrder)
-export const createPayment = (token: string, id: number, key: string, signal: AbortSignal) => request<Payment>(token, `/orders/${id}/payments`, signal, 'POST', { provider: 'fake_card' }, key).then(checkedPayment)
+export const createPayment = (token: string, id: number, key: string, signal: AbortSignal, provider: PaymentProvider = 'fake_card') => request<Payment>(token, `/orders/${id}/payments`, signal, 'POST', { provider }, key).then(checkedPayment)
+export const confirmPayPalPayment = (paypalOrderId: string, token: string, signal: AbortSignal) => {
+  if (!isPayPalOrderId(paypalOrderId)) return Promise.reject(new Error('Invalid PayPal Order ID'))
+  return request<Payment>(token, '/payments/paypal/confirm', AbortSignal.any([signal, AbortSignal.timeout(45_000)]), 'POST', { paypal_order_id: paypalOrderId }).then(checkedPayment).then(payment => {
+    if (payment.provider !== 'paypal' || payment.external_id !== paypalOrderId) throw new Error('Invalid PayPal confirmation response')
+    return payment
+  })
+}
+export const isPayPalOrderId = (value: string | null): value is string => typeof value === 'string' && /^[A-Z0-9]{1,36}$/.test(value)
+export function payPalApprovalUrl(value: string | null): string {
+  if (!value || value.includes('\\')) throw new Error('Invalid PayPal Sandbox redirect')
+  const url = new URL(value)
+  if (url.protocol !== 'https:' || url.hostname !== 'www.sandbox.paypal.com' || url.port || url.username || url.password) throw new Error('Invalid PayPal Sandbox redirect')
+  return url.href
+}
 export const simulatePayment = (token: string, id: number, result: 'success' | 'failure', signal: AbortSignal) => request<Payment>(token, `/payments/${id}/simulate`, signal, 'POST', { result }).then(checkedPayment)
 export const getOrderKeys = (token: string, id: number, signal: AbortSignal) => request<OrderKeys>(token, `/orders/${id}/keys`, signal).then(checkedKeys)
 export function checkoutMessage(error: unknown): string {
   if (error instanceof CheckoutError) {
     if (error.status === 401) return 'Please sign in again. Your cart has been kept.'
-    if (error.status === 403) return 'Demo payment is unavailable or access is restricted.'
+    if (error.status === 403) return 'This payment method is unavailable or access is restricted.'
     if (error.status === 404) return 'This order or payment is not available to your account.'
     if (error.status === 409) return 'Stock or reservation changed. Refresh the order or return to your cart to update availability.'
     if (error.status === 422) return 'Check your cart and quantities, then refresh availability.'
@@ -40,7 +55,8 @@ function record(value: unknown): value is Record<string, unknown> { return value
 const positive = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 const money = (value: unknown) => typeof value === 'string' && /^\d{1,10}\.\d{2}$/.test(value)
 function checkedPayment(value: unknown): Payment {
-  if (!record(value) || !positive(value.id) || !positive(value.order_id) || !['pending', 'succeeded', 'failed', 'cancelled'].includes(String(value.status)) || !money(value.amount)) throw new Error('Invalid payment response')
+  if (!record(value) || !positive(value.id) || !positive(value.order_id) || !['pending', 'succeeded', 'failed', 'cancelled'].includes(String(value.status)) || !money(value.amount) || !['fake_card', 'paypal'].includes(String(value.provider))
+    || !(value.external_id === null || typeof value.external_id === 'string') || !(value.redirect_url === null || typeof value.redirect_url === 'string')) throw new Error('Invalid payment response')
   return value as Payment
 }
 function checkedOrder(value: unknown): Order {

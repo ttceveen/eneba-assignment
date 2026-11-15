@@ -5,7 +5,7 @@ import { AUTH_KEY, AuthContext, type AuthState } from './context'
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
-  const checkKey = (location.pathname === '/checkout' || /^\/orders(?:\/|$)/.test(location.pathname)) ? location.key : 'public'
+  const checkKey = (location.pathname === '/checkout' || location.pathname === '/paypal/return' || /^\/orders(?:\/|$)/.test(location.pathname)) ? location.key : 'public'
   const [state, setState] = useState<AuthState & { checkedKey: string }>({ user: null, loading: true, error: null, checkedKey: '' })
   const [revision, setRevision] = useState(0)
   const token = useRef<string | null>(null)

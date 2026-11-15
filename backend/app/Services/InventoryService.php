@@ -19,6 +19,16 @@ class InventoryService
         }
     }
 
+    /** Caller must hold the order lock; marker writers must acquire that same lock first. */
+    public function hasProtectedConfirmation(Order $order): bool
+    {
+        $this->requireTransaction();
+
+        return $order->status === 'pending_payment' && $order->payments()
+            ->where('provider', 'paypal')->whereNotNull('confirmation_started_at')
+            ->where('confirmation_started_at', '<', $order->reserved_until)->exists();
+    }
+
     /** Caller must lock the order before acquiring offers. */
     public function lockOffers(array $ids): Collection
     {
@@ -84,7 +94,7 @@ class InventoryService
     {
         $this->requireTransaction();
         $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
-        if ($order->status !== 'pending_payment') {
+        if ($order->status !== 'pending_payment' || $this->hasProtectedConfirmation($order)) {
             return 0;
         }
         $items = $order->items()->orderBy('offer_id')->get();
@@ -114,7 +124,22 @@ class InventoryService
         DB::transaction(fn () => $this->confirmSaleLocked($order));
     }
 
+    /** Validate and lock the original reserved keys without selling or replacing them. */
+    public function assertReserved(Order $order): void
+    {
+        $this->requireTransaction();
+        $this->reservedKeysLocked($order);
+    }
+
     private function confirmSaleLocked(Order $order): void
+    {
+        $keys = $this->reservedKeysLocked($order);
+        DB::table('digital_keys')->whereIn('id', $keys->pluck('id'))->update([
+            'status' => 'sold', 'reserved_until' => null, 'updated_at' => now(),
+        ]);
+    }
+
+    private function reservedKeysLocked(Order $order): Collection
     {
         $this->requireTransaction();
         $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
@@ -123,18 +148,19 @@ class InventoryService
         $keys = DB::table('digital_keys')->select(['id', 'order_item_id', 'status', 'reserved_until'])
             ->whereIn('order_item_id', $items->modelKeys())->orderBy('offer_id')->orderBy('id')->lockForUpdate()->get();
         $time = now();
-        if ($order->status !== 'pending_payment' || $order->reserved_until->lte($time) || $items->isEmpty()) {
+        $protected = $this->hasProtectedConfirmation($order);
+        if ($order->status !== 'pending_payment' || (! $protected && $order->reserved_until->lte($time)) || $items->isEmpty()) {
             throw new CheckoutConflictException('The order reservation is no longer valid.');
         }
         $byItem = $keys->groupBy('order_item_id');
         foreach ($items as $item) {
             $assigned = $byItem->get($item->id, collect());
-            if ($assigned->count() !== $item->quantity || $assigned->contains(fn ($key): bool => $key->status !== 'reserved' || $key->reserved_until === null || Carbon::parse($key->reserved_until)->lte($time))) {
+            if ($assigned->count() !== $item->quantity || $assigned->contains(fn ($key): bool => $key->status !== 'reserved' || $key->reserved_until === null
+                || ($protected ? ! Carbon::parse($key->reserved_until)->equalTo($order->reserved_until) : Carbon::parse($key->reserved_until)->lte($time)))) {
                 throw new CheckoutConflictException('The reserved keys do not match the order.');
             }
         }
-        DB::table('digital_keys')->whereIn('id', $keys->pluck('id'))->update([
-            'status' => 'sold', 'reserved_until' => null, 'updated_at' => $time,
-        ]);
+
+        return $keys;
     }
 }
