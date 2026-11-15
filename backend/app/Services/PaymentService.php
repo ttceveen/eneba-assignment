@@ -221,7 +221,7 @@ class PaymentService
             }
             $payment->forceFill([
                 'status' => $result->status, 'external_id' => $result->externalId ?? $payment->external_id,
-                'redirect_url' => $result->redirectUrl, 'error_code' => $result->errorCode, 'error_message' => $result->errorMessage,
+                'redirect_url' => $result->redirectUrl ?? ($result->status === 'pending' ? $payment->redirect_url : null), 'error_code' => $result->errorCode, 'error_message' => $result->errorMessage,
             ])->save();
 
             return $payment;

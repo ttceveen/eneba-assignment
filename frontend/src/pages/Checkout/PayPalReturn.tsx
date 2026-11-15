@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { checkoutMessage, confirmPayPalPayment, isPayPalOrderId } from '../../api/checkout'
+import { checkoutMessage, confirmPayPalPayment, isPayPalOrderId, payPalApprovalUrl, type Payment } from '../../api/checkout'
 import { useAuth } from '../../auth/context'
 import { checkoutKey, readSession, type CheckoutAttempt } from '../../checkout/session'
 import { useConnection } from '../../checkout/useConnection'
@@ -12,6 +12,7 @@ export default function PayPalReturn() {
   const tokens = params.getAll('token'), paypalOrderId = tokens.length === 1 ? tokens[0] : null
   const valid = isPayPalOrderId(paypalOrderId), cancelled = params.get('cancelled') === '1'
   const run = useConnection(), active = useRef<AbortController | null>(null), locked = useRef(false)
+  const [pendingPayment, setPendingPayment] = useState<Payment | null>(null)
   const [attempted, setAttempted] = useState(false)
   const [busy, setBusy] = useState(false), [message, setMessage] = useState('Checking PayPal payment...')
   const savedOrder = user ? readSession<CheckoutAttempt>(checkoutKey(user.id))?.orderId : undefined
@@ -24,6 +25,7 @@ export default function PayPalReturn() {
       const payment = await run(token => confirmPayPalPayment(paypalOrderId, token, controller.signal))
       if (controller.signal.aborted) return
       if (payment.status === 'succeeded') { navigate(`/orders/${payment.order_id}/success`, { replace: true }); return }
+      setPendingPayment(payment.status === 'pending' ? payment : null)
       setMessage(payment.status === 'pending'
         ? 'Платёж ещё обрабатывается. Вы можете повторить проверку.'
         : 'Payment has not been confirmed. Your cart has been kept.')
@@ -41,6 +43,10 @@ export default function PayPalReturn() {
     {!valid && !cancelled && <p role="alert">The PayPal return link is missing a valid Order ID. Return to checkout to continue.</p>}
     {valid && (!cancelled || attempted) && <p role="status">{message}</p>}
     {valid && <button className={styles.primary} disabled={busy} onClick={() => void check()}>{busy ? 'Checking payment...' : 'Repeat payment check'}</button>}
+    {pendingPayment?.external_id === paypalOrderId && pendingPayment?.redirect_url && <button disabled={busy} onClick={() => {
+      try { window.location.assign(payPalApprovalUrl(pendingPayment.redirect_url)) }
+      catch (error) { setMessage(checkoutMessage(error)) }
+    }}>Continue PayPal Sandbox checkout</button>}
     <Link to={back}>Back to checkout</Link><Link to="/cart">Back to cart</Link>
   </section></main>
 }

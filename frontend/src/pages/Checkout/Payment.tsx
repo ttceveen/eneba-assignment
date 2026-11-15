@@ -121,7 +121,7 @@ export default function PaymentPage() {
           </fieldset>}
           {savedPending && method === 'fake_card' && <p>The saved demo result will be retried for this pending attempt.</p>}
           <button className={styles.primary} disabled={busy || (remaining <= 0 && !pendingPayPal?.external_id) || uncertain} onClick={() => void pay()}>{busy ? 'Checking payment...' : method === 'paypal' ? pendingPayPal?.external_id ? 'Check PayPal payment' : 'Pay with PayPal Sandbox' : latest?.status === 'failed' ? 'Try payment again' : latest?.status === 'pending' ? 'Continue demo payment' : 'Pay with demo card'}</button>
-          {pendingPayPal?.redirect_url && <button disabled={busy || remaining <= 0} onClick={() => {
+          {pendingPayPal?.redirect_url && <button disabled={busy || uncertain} onClick={() => {
             try { window.location.assign(payPalApprovalUrl(pendingPayPal.redirect_url)) }
             catch (error) { setMessage(checkoutMessage(error)) }
           }}>Continue PayPal Sandbox checkout</button>}

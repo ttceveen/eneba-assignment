@@ -1024,6 +1024,81 @@ class PaymentServiceTest extends TestCase
         }
     }
 
+    public function test_payer_action_required_checks_preserve_approval_url_without_creating_or_capturing_again(): void
+    {
+        [$user, , $order, $payment] = $this->confirmationFixture();
+        $url = $payment->redirect_url;
+        $this->assertNotNull($url);
+        $this->fakeConfirmation($payment, lookup: fn () => Http::response($this->confirmationDetails('PAYER_ACTION_REQUIRED')));
+        $createsBefore = count(Http::recorded(fn (ClientRequest $request): bool => $request->url() === 'https://api-m.sandbox.paypal.com/v2/checkout/orders'));
+        $first = $this->service()->confirm($user, $payment->external_id);
+        $this->assertSame('pending', $first->status);
+        $this->assertSame($url, $first->redirect_url);
+        $marker = $first->confirmation_started_at;
+        $again = $this->service()->confirm($user, $payment->external_id);
+        $this->assertSame($url, $again->redirect_url);
+        $this->assertSame($payment->external_id, $again->external_id);
+        $this->assertNull($again->capture_id);
+        $this->assertTrue($marker->equalTo($again->confirmation_started_at));
+        $this->assertSame(1, $order->payments()->count());
+        $this->assertSame(0, DigitalKey::where('status', 'sold')->count());
+        $creates = $captures = $lookups = 0;
+        foreach (Http::recorded() as [$request]) {
+            if ($request->url() === 'https://api-m.sandbox.paypal.com/v2/checkout/orders') {
+                $creates++;
+            }
+            if (str_ends_with($request->url(), '/capture')) {
+                $captures++;
+            }
+            if ($request->method() === 'GET') {
+                $lookups++;
+            }
+        }
+        $this->assertSame(0, $captures);
+        $this->assertSame(2, $lookups);
+        $this->assertSame($createsBefore, $creates);
+    }
+
+    public function test_pending_result_can_replace_approval_url_without_changing_confirmation_metadata(): void
+    {
+        [, , , $payment] = $this->confirmationFixture();
+        $payment->forceFill(['confirmation_started_at' => now(), 'capture_id' => 'SAVEDCAPTURE'])->save();
+        $marker = $payment->fresh()->confirmation_started_at;
+        $url = 'https://www.sandbox.paypal.com/checkoutnow?token=REPLACEMENT123';
+        $result = $this->service()->applyResult($payment->id, new PaymentResult('pending', $payment->external_id, $url));
+        $this->assertSame($url, $result->redirect_url);
+        $this->assertSame($payment->external_id, $result->external_id);
+        $this->assertSame('SAVEDCAPTURE', $result->capture_id);
+        $this->assertTrue($marker->equalTo($result->confirmation_started_at));
+        $this->assertSame($url, $this->service()->applyResult($payment->id, new PaymentResult('pending', $payment->external_id))->redirect_url);
+    }
+
+    public function test_pending_result_without_any_approval_url_does_not_invent_one(): void
+    {
+        [, , $order] = $this->order();
+        $payment = $order->payments()->create(['provider' => 'paypal', 'status' => 'pending', 'amount' => $order->total_amount,
+            'currency' => 'EUR', 'external_id' => 'ORDER123']);
+        $this->assertNull($this->service()->applyResult($payment->id, new PaymentResult('pending', 'ORDER123'))->redirect_url);
+    }
+
+    public function test_terminal_results_clear_approval_url_and_later_results_cannot_restore_it(): void
+    {
+        foreach (['succeeded', 'failed', 'cancelled'] as $status) {
+            [, , $order] = $this->order();
+            $externalId = 'ORDER'.$order->id;
+            $payment = $order->payments()->create(['provider' => 'paypal', 'status' => 'pending', 'amount' => $order->total_amount,
+                'currency' => 'EUR', 'external_id' => $externalId]);
+            $url = 'https://www.sandbox.paypal.com/checkoutnow?token='.$externalId;
+            $payment->forceFill(['redirect_url' => $url])->save();
+            $result = $this->service()->applyResult($payment->id, new PaymentResult($status, $externalId));
+            $this->assertSame($status, $result->status);
+            $this->assertNull($result->redirect_url);
+            $repeated = $this->service()->applyResult($payment->id, new PaymentResult('pending', $externalId, $url));
+            $this->assertSame($status, $repeated->status);
+            $this->assertNull($repeated->redirect_url);
+        }
+    }
+
     private function confirmationFixture(): array
     {
         $this->configurePayPalHttp();
