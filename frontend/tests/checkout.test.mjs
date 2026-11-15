@@ -79,3 +79,60 @@ test('malformed successful order response is rejected before rendering', async t
   t.mock.method(globalThis, 'fetch', async () => Response.json({ data: [] }))
   await assert.rejects(api.getOrder('fixture', 1, new AbortController().signal))
 })
+
+const paypalPayment = { id: 7, order_id: 1, provider: 'paypal', external_id: 'ORDER123', redirect_url: 'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123', idempotency_key: 'stable', status: 'pending', amount: '3.00', currency: 'EUR', error_code: null, error_message: null }
+test('PayPal creation sends only provider and uses the stable existing payment endpoint', async t => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(new URL(url).pathname, '/api/orders/1/payments')
+    assert.deepEqual(JSON.parse(options.body), { provider: 'paypal' })
+    assert.equal(options.headers.get('Idempotency-Key'), 'stable')
+    return Response.json({ data: paypalPayment })
+  })
+  assert.deepEqual(await api.createPayment('fixture', 1, 'stable', new AbortController().signal, 'paypal'), paypalPayment)
+})
+test('PayPal confirmation sends only the PayPal Order ID with existing Bearer auth', async t => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(new URL(url).pathname, '/api/payments/paypal/confirm')
+    assert.equal(options.method, 'POST')
+    assert.equal(options.headers.get('Authorization'), 'Bearer fixture')
+    assert.deepEqual(JSON.parse(options.body), { paypal_order_id: 'ORDER123' })
+    assert.equal(options.credentials, 'omit')
+    return Response.json({ data: { ...paypalPayment, status: 'succeeded' } })
+  })
+  assert.equal((await api.confirmPayPalPayment('ORDER123', 'fixture', new AbortController().signal)).status, 'succeeded')
+})
+test('PayPal invalid Order IDs fail before HTTP', async t => {
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({}) })
+  for (const id of ['', 'lowercase', 'ORDER/123', 'ORDER123\n', 'A'.repeat(37)]) await assert.rejects(api.confirmPayPalPayment(id, 'fixture', new AbortController().signal))
+  assert.equal(calls, 0)
+})
+test('PayPal confirmation rejects a different provider or external order identity', async t => {
+  for (const patch of [{ provider: 'fake_card' }, { external_id: 'OTHER123' }]) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ data: { ...paypalPayment, ...patch } }))
+    await assert.rejects(api.confirmPayPalPayment('ORDER123', 'fixture', new AbortController().signal))
+    t.mock.restoreAll()
+  }
+})
+test('PayPal redirects permit only the Sandbox checkout host', () => {
+  assert.equal(api.payPalApprovalUrl(paypalPayment.redirect_url), paypalPayment.redirect_url)
+  for (const url of [null, '', 'javascript:alert(1)', 'http://www.sandbox.paypal.com/checkoutnow', 'https://www.paypal.com/checkoutnow', 'https://www.sandbox.paypal.com.evil.test/', 'https://user@www.sandbox.paypal.com/', 'https://www.sandbox.paypal.com:444/']) assert.throws(() => api.payPalApprovalUrl(url))
+})
+test('Fake Card remains the default provider for existing callers', async t => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.deepEqual(JSON.parse(options.body), { provider: 'fake_card' })
+    return Response.json({ data: { ...paypalPayment, provider: 'fake_card', external_id: 'fake_card_7', redirect_url: null } })
+  })
+  assert.equal((await api.createPayment('fixture', 1, 'stable', new AbortController().signal)).provider, 'fake_card')
+})
+
+test('PayPal confirmation has a bounded timeout and keeps the caller cancellation signal', async t => {
+  const expired = AbortSignal.abort(new DOMException('Timed out', 'TimeoutError'))
+  t.mock.method(AbortSignal, 'timeout', ms => { assert.equal(ms, 45000); return expired })
+  t.mock.method(globalThis, 'fetch', async (url, options) => { options.signal.throwIfAborted(); return Response.json({ data: paypalPayment }) })
+  await assert.rejects(api.confirmPayPalPayment('ORDER123', 'fixture', new AbortController().signal), { name: 'TimeoutError' })
+  t.mock.restoreAll()
+  const controller = new AbortController(); controller.abort()
+  t.mock.method(globalThis, 'fetch', async (url, options) => { options.signal.throwIfAborted(); return Response.json({ data: paypalPayment }) })
+  await assert.rejects(api.confirmPayPalPayment('ORDER123', 'fixture', controller.signal), { name: 'AbortError' })
+})

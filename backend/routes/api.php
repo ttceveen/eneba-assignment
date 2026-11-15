@@ -28,6 +28,7 @@ Route::post('/register', [AuthController::class, 'register'])->middleware('throt
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function () {
     Route::post('/orders/{order}/payments', [PaymentController::class, 'store'])->whereNumber('order');
+    Route::post('/payments/paypal/confirm', [PaymentController::class, 'confirm']);
     Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate'])->whereNumber('payment');
     Route::get('/orders/{order}/keys', [PaymentController::class, 'keys'])->whereNumber('order');
     Route::post('/checkout', [CheckoutController::class, 'store']);

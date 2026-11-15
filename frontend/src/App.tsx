@@ -14,6 +14,7 @@ import ProtectedPage from './pages/Auth/ProtectedPage'
 import Checkout from './pages/Checkout/Checkout'
 import Payment from './pages/Checkout/Payment'
 import Success from './pages/Checkout/Success'
+import PayPalReturn from './pages/Checkout/PayPalReturn'
 
 function RouteScroll() {
   const location = useLocation()
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/login" element={<Auth key="login" mode="login" />} />
               <Route path="/register" element={<Auth key="register" mode="register" />} />
               <Route element={<RequireAuth />}>
+                <Route path="/paypal/return" element={<PayPalReturn />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/orders/:id" element={<Payment />} />
                 <Route path="/orders/:id/success" element={<Success />} />

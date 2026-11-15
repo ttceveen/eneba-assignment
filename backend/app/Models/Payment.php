@@ -11,7 +11,7 @@ class Payment extends Model
 {
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2'];
+        return ['amount' => 'decimal:2', 'confirmation_started_at' => 'datetime'];
     }
 
     public function order(): BelongsTo

@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Payments\PaymentGatewayRegistry;
 use App\Payments\PaymentResult;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -74,6 +75,94 @@ class PaymentService
         return $this->applyResult($payment->id, $result);
     }
 
+    public function confirm(User $user, string $paypalOrderId): Payment
+    {
+        $this->requireNoTransaction();
+        abort_unless($user->status === 'active', 403, 'This account is blocked.');
+        Validator::make(['id' => $paypalOrderId], ['id' => ['required', 'string', 'regex:/^[A-Z0-9]{1,36}$/D']])->validate();
+        $snapshot = Payment::query()->where('provider', 'paypal')->where('external_id', $paypalOrderId)
+            ->whereHas('order', fn ($query) => $query->where('user_id', $user->id))->firstOrFail();
+        $payment = DB::transaction(function () use ($snapshot, $user, $paypalOrderId): ?Payment {
+            $order = Order::query()->whereKey($snapshot->order_id)->where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+            $payment = Payment::query()->whereKey($snapshot->id)->where('order_id', $order->id)
+                ->where('provider', 'paypal')->where('external_id', $paypalOrderId)->lockForUpdate()->firstOrFail();
+            if ($payment->status === 'succeeded' && $order->status === 'paid') {
+                return $payment;
+            }
+            if ($payment->status !== 'pending' || $order->status !== 'pending_payment') {
+                throw new CheckoutConflictException('This payment cannot be confirmed.');
+            }
+            if ($payment->amount !== $order->total_amount || $payment->currency !== $order->currency || $payment->currency !== 'EUR') {
+                throw new CheckoutConflictException('The payment does not match the order amount or currency.');
+            }
+            if ($payment->confirmation_started_at !== null && $payment->confirmation_started_at->gte($order->reserved_until)) {
+                throw new CheckoutConflictException('Payment confirmation did not start before the reservation deadline.');
+            }
+            if ($payment->confirmation_started_at === null && $order->reserved_until->lte(now())) {
+                // Commit ordinary lazy expiration; no marker is backdated and no HTTP is attempted.
+                $this->checkout->get($user, $order->id);
+
+                return null;
+            }
+            $this->inventory->assertReserved($order);
+            if ($payment->confirmation_started_at === null) {
+                $startedAt = now();
+                if ($order->reserved_until->lte($startedAt)) {
+                    $this->checkout->get($user, $order->id);
+
+                    return null;
+                }
+                $payment->forceFill(['confirmation_started_at' => $startedAt])->save();
+            }
+
+            return $payment;
+        }, 3);
+        if ($payment === null) {
+            throw new CheckoutConflictException('The order reservation has expired.');
+        }
+        if ($payment->status === 'succeeded') {
+            return $payment;
+        }
+
+        try {
+            $result = $this->gateways->get('paypal')->confirm($payment);
+        } catch (\Throwable) {
+            $current = $this->applyResult($payment->id, new PaymentResult('pending', errorCode: 'gateway_unavailable',
+                errorMessage: 'Payment confirmation is unconfirmed; retry the same payment.'));
+            if ($current->status === 'succeeded') {
+                return $current;
+            }
+            throw new HttpException(502, 'The payment provider could not confirm this attempt.');
+        }
+        if ($result->externalId !== $payment->external_id || ! in_array($result->status, ['pending', 'succeeded'], true)
+            || ($result->status === 'succeeded' && $result->captureId === null)) {
+            throw new CheckoutConflictException('The provider result cannot confirm this payment.');
+        }
+        if ($result->captureId !== null) {
+            $this->saveCaptureId($payment, $result->captureId);
+        }
+
+        return $this->applyResult($payment->id, $result);
+    }
+
+    private function saveCaptureId(Payment $snapshot, string $captureId): void
+    {
+        try {
+            DB::transaction(function () use ($snapshot, $captureId): void {
+                Order::query()->whereKey($snapshot->order_id)->lockForUpdate()->firstOrFail();
+                $payment = Payment::query()->whereKey($snapshot->id)->where('order_id', $snapshot->order_id)->lockForUpdate()->firstOrFail();
+                if ($payment->capture_id !== null && $payment->capture_id !== $captureId) {
+                    throw new CheckoutConflictException('The payment capture identity changed.');
+                }
+                if ($payment->capture_id === null) {
+                    $payment->forceFill(['capture_id' => $captureId])->save();
+                }
+            }, 3);
+        } catch (UniqueConstraintViolationException) {
+            throw new CheckoutConflictException('The capture is already assigned to another payment.');
+        }
+    }
+
     public function simulate(User $user, int $paymentId, string $result): Payment
     {
         $this->requireNoTransaction();
@@ -95,7 +184,7 @@ class PaymentService
             if ($payment->status !== 'pending') {
                 return $payment;
             }
-            if ($order->status !== 'pending_payment' || $order->reserved_until->lte(now())) {
+            if ($order->status !== 'pending_payment' || ($order->reserved_until->lte(now()) && ! $this->inventory->hasProtectedConfirmation($order))) {
                 return $this->rejectClosedOrder($order, $payment, $result);
             }
             if ($payment->amount !== $order->total_amount || $payment->currency !== $order->currency) {
@@ -118,13 +207,13 @@ class PaymentService
                                 throw new CheckoutConflictException('Purchase statistics are missing for this game.');
                             }
                         }
-                        if ($order->reserved_until->lte(now())) {
+                        if ($order->reserved_until->lte(now()) && ! $this->inventory->hasProtectedConfirmation($order)) {
                             throw new CheckoutConflictException('The reservation expired during completion.');
                         }
                         $order->update(['status' => 'paid']);
                     });
                 } catch (CheckoutConflictException $exception) {
-                    if ($order->reserved_until->lte(now())) {
+                    if ($order->reserved_until->lte(now()) && ! $this->inventory->hasProtectedConfirmation($order)) {
                         return $this->rejectClosedOrder($order, $payment, $result);
                     }
                     throw $exception;

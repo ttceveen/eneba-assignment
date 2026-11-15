@@ -435,6 +435,131 @@ class CheckoutServiceTest extends TestCase
         return $results;
     }
 
+    public function test_unprotected_paypal_fake_card_and_late_or_equal_markers_expire_normally(): void
+    {
+        foreach ([['paypal', null], ['paypal', 0], ['paypal', 1], ['fake_card', -1]] as [$provider, $offset]) {
+            $user = User::factory()->create();
+            $offer = $this->offer(1);
+            $order = $this->create($user, $offer);
+            $payment = $order->payments()->create(['provider' => $provider, 'status' => 'pending', 'amount' => $order->total_amount, 'currency' => 'EUR']);
+            if ($offset !== null) {
+                $payment->forceFill(['confirmation_started_at' => $order->reserved_until->copy()->addSeconds($offset)])->save();
+            }
+            Carbon::setTestNow($order->reserved_until->copy()->addSeconds(2));
+            $this->assertSame('expired', $this->service()->get($user, $order->id)->status);
+            $this->assertSame(1, $offer->fresh()->quantity);
+            $this->assertSame(0, $order->items->sole()->digitalKeys()->count());
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_protected_paypal_reservation_survives_expiration_cancel_and_direct_release(): void
+    {
+        [$user, $offer, $order] = $this->protectedOrder();
+        $ids = $order->items->sole()->digitalKeys()->pluck('id')->all();
+        Carbon::setTestNow($order->reserved_until->copy()->addSecond());
+        $this->assertSame('pending_payment', $this->service()->get($user, $order->id)->status);
+        $this->assertSame(0, app(InventoryService::class)->release($order));
+        $this->assertSame(409, $this->api('POST', '/api/orders/'.$order->id.'/cancel', $user)[0]);
+        $this->assertSame(0, $offer->fresh()->quantity);
+        $this->assertSame($ids, $order->items->sole()->digitalKeys()->where('status', 'reserved')->pluck('id')->all());
+        // A competing checkout must not reclaim the protected keys.
+        try {
+            $this->create(User::factory()->create(), $offer, key: 'competing');
+            $this->fail('Protected key was reclaimed.');
+        } catch (CheckoutConflictException) {
+            $this->assertSame('pending_payment', $order->fresh()->status);
+        }
+    }
+
+    public function test_protected_paypal_can_sell_only_original_keys_after_deadline(): void
+    {
+        [, $offer, $order] = $this->protectedOrder();
+        $ids = $order->items->sole()->digitalKeys()->pluck('id')->all();
+        Carbon::setTestNow($order->reserved_until->copy()->addSecond());
+        DB::transaction(function () use ($order): void {
+            app(InventoryService::class)->confirmSale($order);
+            $order->update(['status' => 'paid']);
+        });
+        $this->assertSame($ids, $order->items->sole()->digitalKeys()->where('status', 'sold')->pluck('id')->all());
+        $this->assertSame(0, $offer->fresh()->quantity);
+        $this->assertSame(0, app(InventoryService::class)->release($order));
+    }
+
+    public function test_protection_does_not_allow_missing_or_reassigned_or_already_sold_keys(): void
+    {
+        foreach (['missing', 'reassigned', 'sold', 'wrong_deadline'] as $damage) {
+            [, $offer, $order] = $this->protectedOrder();
+            $key = $order->items->sole()->digitalKeys()->sole();
+            if ($damage === 'missing') {
+                $key->delete();
+            } elseif ($damage === 'reassigned') {
+                $other = Order::create(['user_id' => User::factory()->create()->id, 'status' => 'pending_payment',
+                    'total_amount' => $offer->price, 'currency' => 'EUR', 'reserved_until' => $order->reserved_until]);
+                $item = $other->items()->create(['offer_id' => $offer->id, 'quantity' => 1, 'unit_price' => $offer->price]);
+                $key->update(['order_item_id' => $item->id]);
+            } elseif ($damage === 'sold') {
+                $key->update(['status' => 'sold', 'reserved_until' => null]);
+            } else {
+                $key->update(['reserved_until' => $order->reserved_until->copy()->subSecond()]);
+            }
+            Carbon::setTestNow($order->reserved_until->copy()->addSecond());
+            try {
+                app(InventoryService::class)->confirmSale($order);
+                $this->fail('Damaged key assignment was accepted.');
+            } catch (CheckoutConflictException) {
+                $this->assertSame('pending_payment', $order->fresh()->status);
+                $this->assertSame(0, $offer->fresh()->quantity);
+            }
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_marker_on_another_order_does_not_protect_an_unrelated_reservation(): void
+    {
+        $this->protectedOrder();
+        $user = User::factory()->create();
+        $order = $this->create($user, $this->offer(1));
+        Carbon::setTestNow($order->reserved_until->copy()->addSecond());
+        $this->assertSame('expired', $this->service()->get($user, $order->id)->status);
+    }
+
+    public function test_concurrent_expiration_and_cancel_cannot_release_protected_keys(): void
+    {
+        Carbon::setTestNow(now()->subMinutes(20));
+        [$user, $offer, $order] = $this->protectedOrder();
+        Carbon::setTestNow();
+        $results = $this->race('get', $user, ['id' => $order->id], 'cancel', $user, ['id' => $order->id], 'orders', $order->id);
+        $codes = array_column($results, 'status');
+        sort($codes);
+        $this->assertSame([200, 409], $codes);
+        $this->assertSame('pending_payment', $order->fresh()->status);
+        $this->assertSame(0, $offer->fresh()->quantity);
+        $this->assertSame(1, $order->items->sole()->digitalKeys()->where('status', 'reserved')->count());
+    }
+
+    public function test_concurrent_expiration_reads_preserve_protected_reservation(): void
+    {
+        Carbon::setTestNow(now()->subMinutes(20));
+        [$user, $offer, $order] = $this->protectedOrder();
+        Carbon::setTestNow();
+        $results = $this->race('get', $user, ['id' => $order->id], 'get', $user, ['id' => $order->id], 'orders', $order->id);
+        $this->assertSame([200, 200], array_column($results, 'status'));
+        $this->assertSame('pending_payment', $order->fresh()->status);
+        $this->assertSame(0, $offer->fresh()->quantity);
+    }
+
+    private function protectedOrder(): array
+    {
+        $user = User::factory()->create();
+        $offer = $this->offer(1);
+        $order = $this->create($user, $offer);
+        $payment = $order->payments()->create(['provider' => 'paypal', 'status' => 'pending', 'amount' => $order->total_amount, 'currency' => 'EUR']);
+        $payment->forceFill(['confirmation_started_at' => now()])->save();
+
+        return [$user, $offer, $order];
+    }
+
     public function test_concurrent_buyers_compete_for_last_key_without_negative_stock(): void
     {
         $offer = $this->offer(1);

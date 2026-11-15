@@ -7,13 +7,16 @@ use App\Models\DigitalKey;
 use App\Models\Game;
 use App\Models\Offer;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Seller;
 use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -131,6 +134,118 @@ class CheckoutSchemaTest extends TestCase
         $order->payments()->create(array_replace($attributes, ['provider' => 'another_provider', 'status' => 'failed', 'external_id' => 'fixture-payment']));
         $order->payments()->create(array_replace($attributes, ['status' => 'failed']));
         $this->assertCount(4, $order->fresh()->payments);
+    }
+
+    public function test_payments_without_confirmation_metadata_remain_compatible(): void
+    {
+        $payment = $this->confirmationPayment()->fresh();
+        $this->assertNull($payment->confirmation_started_at);
+        $this->assertNull($payment->capture_id);
+        $this->assertSame('failed', $payment->status);
+        $this->assertSame('25.00', $payment->amount);
+        $this->assertSame('EUR', $payment->currency);
+        $this->assertTrue($payment->order->exists);
+        $columns = DB::select("SELECT column_name, udt_name, is_nullable, column_default, character_maximum_length FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'payments' AND column_name IN ('confirmation_started_at', 'capture_id')");
+        $this->assertCount(2, $columns);
+        foreach ($columns as $column) {
+            $this->assertSame('YES', $column->is_nullable);
+            $this->assertNull($column->column_default);
+            if ($column->column_name === 'capture_id') {
+                $this->assertSame(255, $column->character_maximum_length);
+            } else {
+                $this->assertSame('timestamptz', $column->udt_name);
+            }
+        }
+    }
+
+    public function test_confirmation_started_at_round_trips_as_datetime(): void
+    {
+        $payment = $this->confirmationPayment();
+        $time = Carbon::parse('2026-11-15T12:34:56+04:00')->utc();
+        $payment->forceFill(['confirmation_started_at' => $time])->save();
+        $fresh = $payment->fresh();
+        $this->assertInstanceOf(Carbon::class, $fresh->confirmation_started_at);
+        $this->assertTrue($fresh->confirmation_started_at->equalTo($time));
+        $fresh->forceFill(['confirmation_started_at' => null])->save();
+        $this->assertNull($fresh->fresh()->confirmation_started_at);
+    }
+
+    public function test_capture_id_round_trips_with_255_character_limit(): void
+    {
+        $payment = $this->confirmationPayment();
+        $payment->forceFill(['capture_id' => str_repeat('A', 255)])->save();
+        $this->assertSame(str_repeat('A', 255), $payment->fresh()->capture_id);
+        $this->rejected(fn () => DB::table('payments')->where('id', $payment->id)->update(['capture_id' => str_repeat('A', 256)]), '22001');
+        $payment->forceFill(['capture_id' => null])->save();
+        $this->assertNull($payment->fresh()->capture_id);
+    }
+
+    public function test_capture_id_is_unique_per_provider_but_can_repeat_for_other_providers(): void
+    {
+        $first = $this->confirmationPayment();
+        $first->forceFill(['capture_id' => 'CAPTURE123'])->save();
+        $second = $this->confirmationPayment();
+        $this->rejected(fn () => DB::table('payments')->where('id', $second->id)->update(['capture_id' => 'CAPTURE123']), '23505');
+        $second->forceFill(['provider' => 'other_provider', 'capture_id' => 'CAPTURE123'])->save();
+        $this->assertSame('CAPTURE123', $second->fresh()->capture_id);
+        $this->assertSame(2, Payment::where('capture_id', 'CAPTURE123')->count());
+    }
+
+    public function test_multiple_payments_can_have_null_capture_ids_for_the_same_provider(): void
+    {
+        $first = $this->confirmationPayment();
+        $second = $first->order->payments()->create(['provider' => 'paypal', 'status' => 'failed', 'amount' => '25.00', 'currency' => 'EUR']);
+        $this->assertNull($first->fresh()->capture_id);
+        $this->assertNull($second->fresh()->capture_id);
+        $this->assertSame(2, Payment::where('provider', 'paypal')->whereNull('capture_id')->count());
+    }
+
+    public function test_confirmation_migration_rollback_and_reapply_preserve_legacy_payment_data(): void
+    {
+        $payment = $this->confirmationPayment();
+        $before = (array) DB::table('payments')->where('id', $payment->id)->first();
+        unset($before['confirmation_started_at'], $before['capture_id']);
+        $migration = require database_path('migrations/2026_11_15_000001_add_confirmation_metadata_to_payments.php');
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('payments', 'confirmation_started_at'));
+        $this->assertFalse(Schema::hasColumn('payments', 'capture_id'));
+        $this->assertNull(DB::selectOne("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'payments_provider_capture_unique'"));
+        $this->assertSame($before, (array) DB::table('payments')->where('id', $payment->id)->first());
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('payments', 'confirmation_started_at'));
+        $this->assertTrue(Schema::hasColumn('payments', 'capture_id'));
+        $this->assertNotNull(DB::selectOne("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'payments_provider_capture_unique'"));
+        $this->assertNull($payment->fresh()->confirmation_started_at);
+        $this->assertNull($payment->fresh()->capture_id);
+        $after = (array) DB::table('payments')->where('id', $payment->id)->first();
+        unset($after['confirmation_started_at'], $after['capture_id']);
+        $this->assertSame($before, $after);
+    }
+
+    public function test_confirmation_rollback_refuses_to_discard_populated_metadata(): void
+    {
+        $migration = require database_path('migrations/2026_11_15_000001_add_confirmation_metadata_to_payments.php');
+        $payment = $this->confirmationPayment();
+        foreach ([['confirmation_started_at' => now()], ['capture_id' => 'CAPTURE123']] as $metadata) {
+            $payment->forceFill(array_replace(['confirmation_started_at' => null, 'capture_id' => null], $metadata))->save();
+            $before = $payment->fresh()->getAttributes();
+            try {
+                $migration->down();
+                $this->fail('Rollback discarded confirmation metadata.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString('refusing', $exception->getMessage());
+            }
+            $this->assertSame($before, $payment->fresh()->getAttributes());
+            $this->assertTrue(Schema::hasColumn('payments', 'confirmation_started_at'));
+            $this->assertTrue(Schema::hasColumn('payments', 'capture_id'));
+        }
+    }
+
+    private function confirmationPayment(): Payment
+    {
+        [, , $order] = $this->fixtures();
+
+        return $order->payments()->create(['provider' => 'paypal', 'status' => 'failed', 'amount' => '25.00', 'currency' => 'EUR']);
     }
 
     public function test_checks_and_foreign_keys_preserve_history(): void

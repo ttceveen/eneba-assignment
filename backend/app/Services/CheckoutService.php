@@ -92,6 +92,9 @@ class CheckoutService
             if ($order->status === 'paid') {
                 throw new CheckoutConflictException('A paid order cannot be cancelled.');
             }
+            if ($this->inventory->hasProtectedConfirmation($order)) {
+                throw new CheckoutConflictException('An order with payment confirmation in progress cannot be cancelled.');
+            }
             if ($order->status === 'pending_payment') {
                 $this->inventory->release($order);
                 $order->update(['status' => 'cancelled']);
@@ -103,7 +106,8 @@ class CheckoutService
 
     private function expireLocked(Order $order): Order
     {
-        if ($order->status === 'pending_payment' && $order->reserved_until->lte(now())) {
+        if ($order->status === 'pending_payment' && $order->reserved_until->lte(now())
+            && ! $this->inventory->hasProtectedConfirmation($order)) {
             $this->inventory->release($order);
             $order->update(['status' => 'expired']);
         }
@@ -114,6 +118,8 @@ class CheckoutService
     private function expireForOffers(array $ids): void
     {
         $expired = Order::query()->where('status', 'pending_payment')->where('reserved_until', '<=', now())
+            ->whereDoesntHave('payments', fn ($query) => $query->where('provider', 'paypal')->whereNotNull('confirmation_started_at')
+                ->whereColumn('payments.confirmation_started_at', '<', 'orders.reserved_until'))
             ->whereHas('items', fn ($query) => $query->whereIn('offer_id', $ids))
             ->orderBy('reserved_until')->orderBy('id')->limit(50)->pluck('id');
         foreach ($expired as $id) {
