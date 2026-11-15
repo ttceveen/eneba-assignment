@@ -150,7 +150,7 @@ export default function SearchPanel() {
                     </section>
                     <section className={styles.games} aria-label="Search preview">
                       <h2>Games</h2>
-                      {current.result.data.map((game) => <Link key={game.id} to={`/games/${game.id}`} onClick={() => store(true)} state={{ catalogReturn: catalogReturn(location) }}>
+                      {current.result.data.map((game) => <Link key={game.id} to={`/games/${game.id}`} onClick={() => store(true)} state={{ catalogReturn: catalogReturn(location, true) }}>
                         <div className={styles.cover}><GameCover name={game.name} img={game.img} /></div><span>{game.name}</span>
                       </Link>)}
                     </section>

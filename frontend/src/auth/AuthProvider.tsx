@@ -8,6 +8,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const checkKey = (location.pathname === '/checkout' || location.pathname === '/paypal/return' || /^\/orders(?:\/|$)/.test(location.pathname)) ? location.key : 'public'
   const [state, setState] = useState<AuthState & { checkedKey: string }>({ user: null, loading: true, error: null, checkedKey: '' })
   const [revision, setRevision] = useState(0)
+  const [logoutRevision, setLogoutRevision] = useState(0)
   const token = useRef<string | null>(null)
   const version = useRef(0)
   useEffect(() => {
@@ -58,10 +59,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     ++version.current
     try { sessionStorage.removeItem(AUTH_KEY) } catch { /* A revoked token cannot authenticate again. */ }
     token.current = null
+    setLogoutRevision(value => value + 1)
     setState({ user: null, loading: false, error: null, checkedKey: checkKey })
     setRevision((value) => value + 1)
   }, [checkKey])
   const refresh = useCallback(() => setRevision((value) => value + 1), [])
-  const value = useMemo(() => ({ ...state, loading: state.loading || state.checkedKey !== checkKey, signedIn, signOut, refresh }), [state, checkKey, signedIn, signOut, refresh])
+  const value = useMemo(() => ({ ...state, loading: state.loading || state.checkedKey !== checkKey, logoutRevision, signedIn, signOut, refresh }), [state, checkKey, logoutRevision, signedIn, signOut, refresh])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

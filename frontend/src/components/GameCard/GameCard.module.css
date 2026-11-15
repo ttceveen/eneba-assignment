@@ -1,11 +1,15 @@
-.card { min-width: 0; overflow: hidden; border: 1px solid #7950ca; background: #1f0a4d; }
-.link { display: block; height: 100%; color: inherit; text-decoration: none; }
-.link:focus-visible { outline: 3px solid #fad318; outline-offset: -3px; }
-.details { padding: 20px 18px 21px; }
-.name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; height: 2.8em; margin: 0; overflow: hidden; color: #fff; font-size: 16px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
-.region { height: 1.5em; margin: 9px 0 21px; overflow: hidden; color: #23c299; font-size: 12px; font-weight: 700; line-height: 1.5; white-space: nowrap; text-overflow: ellipsis; }
-.price { margin: 0; color: #fff; font-size: 26px; line-height: 1.15; font-weight: 700; letter-spacing: -0.8px; }
-
-.offers { min-height: 66px; }
-.offerCount { margin: 8px 0 0; color: #c5b1f1; font-size: 12px; line-height: 1.5; }
-.noOffers { margin: 0; padding-top: 8px; color: #c5b1f1; font-size: 14px; line-height: 1.5; }
+.card { min-width: 0; overflow: hidden; border: 1px solid #353345; border-radius: 12px; background: #1c1d2c; box-shadow: 0 4px 16px #0002; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.link { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; }
+.link > img, .link > div:first-child { transition: filter 160ms ease; }
+.card:hover { border-color: #a78bfa; box-shadow: 0 10px 24px #0005; transform: translateY(-3px); }
+.card:hover .link > img { filter: brightness(1.08); }
+.link:focus-visible { outline: 3px solid #c4b5fd; outline-offset: -3px; }
+.details { display: flex; flex: 1; flex-direction: column; padding: 16px; }
+.name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; height: 2.8em; margin: 0; overflow: hidden; color: #f5f5fa; font-size: 15px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.region { height: 1.5em; margin: 10px 0 20px; overflow: hidden; color: #72d9be; font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: .4px; white-space: nowrap; text-overflow: ellipsis; }
+.offers { min-height: 62px; margin-top: auto; padding-top: 14px; border-top: 1px solid #343345; }
+.price { margin: 0; color: #ffe16a; font-size: clamp(20px, 2vw, 26px); line-height: 1.2; font-weight: 750; letter-spacing: -.7px; }
+.offerCount { margin: 7px 0 0; color: #aaa8bf; font-size: 12px; line-height: 1.5; }
+.noOffers { margin: 0; padding-top: 8px; color: #aaa8bf; font-size: 13px; line-height: 1.5; }
+@media (max-width: 600px) { .details { padding: 12px; } .name { font-size: 13px; } .region { margin-bottom: 14px; font-size: 10px; } .offerCount { font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .card, .link > img, .link > div:first-child { transition: none; } .card:hover { transform: none; } }

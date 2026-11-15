@@ -14,11 +14,10 @@ type GameCardProps = {
 
 export default function GameCard({ id, name, location, img, price, offersCount = 0 }: GameCardProps) {
   const routerLocation = useLocation()
-  const plural = new Intl.PluralRules('ru').select(offersCount)
-  const offerWord = plural === 'one' ? 'предложение' : plural === 'few' ? 'предложения' : 'предложений'
+  const offerWord = offersCount === 1 ? 'offer' : 'offers'
   return (
     <article className={styles.card} data-game-id={id}>
-      <Link className={styles.link} to={`/games/${id}`} state={{ catalogReturn: catalogReturn(routerLocation) }} aria-label={name}>
+      <Link className={styles.link} to={`/games/${id}`} state={{ catalogReturn: catalogReturn(routerLocation, true) }} aria-label={name}>
         <GameCover name={name} img={img} />
         <div className={styles.details}>
           <h2 className={styles.name}>{name}</h2>
@@ -28,10 +27,10 @@ export default function GameCard({ id, name, location, img, price, offersCount =
           <div className={styles.offers}>
             {offersCount > 0 && price !== undefined && price !== null ? (
               <>
-                <p className={styles.price}>От {new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(price))}</p>
+                <p className={styles.price}>From {new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Number(price))}</p>
                 <p className={styles.offerCount}>{offersCount} {offerWord}</p>
               </>
-            ) : <p className={styles.noOffers}>Нет предложений</p>}
+            ) : <p className={styles.noOffers}>No offers available</p>}
           </div>
         </div>
       </Link>

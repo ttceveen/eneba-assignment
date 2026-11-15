@@ -136,3 +136,23 @@ test('PayPal confirmation has a bounded timeout and keeps the caller cancellatio
   t.mock.method(globalThis, 'fetch', async (url, options) => { options.signal.throwIfAborted(); return Response.json({ data: paypalPayment }) })
   await assert.rejects(api.confirmPayPalPayment('ORDER123', 'fixture', controller.signal), { name: 'AbortError' })
 })
+
+for (const [context, expected] of [
+  ['create-order', 'Unable to create your order.'],
+  ['start-payment', 'Unable to start payment.'],
+  ['confirm', 'The payment confirmation result is unknown.'],
+  ['load-order', 'Unable to load your order.'],
+  ['load-keys', 'Your payment is confirmed, but your digital keys could not be loaded.'],
+]) test(`safe contextual message for ${context}`, () => {
+  const message = api.checkoutMessage(new Error('private-provider-secret'), context)
+  assert.ok(message.startsWith(expected))
+  assert.ok(!message.includes('private-provider-secret'))
+  assert.ok(!message.includes('payment failed'))
+})
+
+test('contextual checkout errors retain actionable HTTP details without claiming failed payment', () => {
+  const message = api.checkoutMessage(new api.CheckoutError(409), 'create-order')
+  assert.ok(message.includes('Unable to create your order.'))
+  assert.ok(message.includes('Stock or reservation changed.'))
+  assert.ok(api.checkoutMessage(new api.CheckoutError(502), 'confirm').includes('result is unknown'))
+})

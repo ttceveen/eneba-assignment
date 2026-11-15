@@ -40,15 +40,25 @@ export function payPalApprovalUrl(value: string | null): string {
 }
 export const simulatePayment = (token: string, id: number, result: 'success' | 'failure', signal: AbortSignal) => request<Payment>(token, `/payments/${id}/simulate`, signal, 'POST', { result }).then(checkedPayment)
 export const getOrderKeys = (token: string, id: number, signal: AbortSignal) => request<OrderKeys>(token, `/orders/${id}/keys`, signal).then(checkedKeys)
-export function checkoutMessage(error: unknown): string {
+export function checkoutMessage(error: unknown, context: 'create-order' | 'start-payment' | 'confirm' | 'load-order' | 'load-keys' | 'cancel' | 'redirect' = 'confirm'): string {
+  const message = {
+    'create-order': 'Unable to create your order. Retry checkout using the same request, or return to your cart.',
+    'start-payment': 'Unable to start payment. The attempt may already exist. Refresh the order before continuing.',
+    confirm: 'The payment confirmation result is unknown. Refresh the order before retrying the same payment. Do not start another payment.',
+    'load-order': 'Unable to load your order. Refresh the order to see its current payment status.',
+    'load-keys': 'Your payment is confirmed, but your digital keys could not be loaded. Retry loading keys; do not pay again.',
+    cancel: 'Unable to confirm cancellation. Refresh the order before taking another action.',
+    redirect: 'Unable to open the PayPal Sandbox approval link. Refresh the order before continuing.',
+  }[context]
+  let detail = ''
   if (error instanceof CheckoutError) {
-    if (error.status === 401) return 'Please sign in again. Your cart has been kept.'
-    if (error.status === 403) return 'This payment method is unavailable or access is restricted.'
-    if (error.status === 404) return 'This order or payment is not available to your account.'
-    if (error.status === 409) return 'Stock or reservation changed. Refresh the order or return to your cart to update availability.'
-    if (error.status === 422) return 'Check your cart and quantities, then refresh availability.'
+    if (error.status === 401) detail = 'Please sign in again.'
+    if (error.status === 403) detail = 'This payment method is unavailable or access is restricted.'
+    if (error.status === 404) detail = 'This order or payment is not available to your account.'
+    if (error.status === 409) detail = 'Stock or reservation changed. Refresh the order or return to your cart to update availability.'
+    if (error.status === 422) detail = 'Check your cart and quantities, then refresh availability.'
   }
-  return 'Unable to confirm the result. Check the server status before retrying. Your cart has been kept.'
+  return `${message}${detail ? ` ${detail}` : ''}`
 }
 
 function record(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value) }

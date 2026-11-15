@@ -4,6 +4,7 @@ import type { CartItem } from './cart'
 
 type CartContextValue = {
   items: CartItem[]
+  stockChanges: { offerId: number; from: number; to: number }[]
   storageError: boolean
   syncRevision: number
   getSnapshot: () => string
