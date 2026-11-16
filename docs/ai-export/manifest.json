@@ -1,0 +1,355 @@
+{
+  "format_version": 1,
+  "snapshot_started_at_utc": "2026-11-16T00:36:41.652677+00:00",
+  "scope": "All project-relevant JSONL files found in the local Codex sessions store, created on or after 2026-11-09. Each source is a point-in-time snapshot; live sessions may subsequently grow.",
+  "source_root": "/mnt/c/Users/ttcev/.codex/sessions",
+  "sessions": [
+    {
+      "source_session_id": "01a1c61d-4fba-7d20-b739-0b9e3ffee45c",
+      "created_at": "2026-11-10T15:39:45.020Z",
+      "last_event_at": "2026-11-13T13:06:56.853Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/10/rollout-2026-11-10T19-39-32-01a1c61d-4fba-7d20-b739-0b9e3ffee45c.jsonl",
+      "exported_file": "codex/session-001.jsonl",
+      "original_event_count": 5885,
+      "exported_event_count": 5885,
+      "secret_replacements": 356,
+      "sha256": "c4a778f1e2a12427f0155ac2a12d2d6418d2f3fdf6ba3c50b1a0878286618562",
+      "size_bytes": 24564732,
+      "source_snapshot_bytes": 24573136,
+      "event_type_counts": {
+        "session_meta": 1,
+        "event_msg": 2666,
+        "response_item": 2530,
+        "world_state": 9,
+        "turn_context": 42,
+        "token_usage_record": 634,
+        "compacted": 3
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1c61d-db30-7a62-9837-031a4c520426",
+      "created_at": "2026-11-10T15:40:08.247Z",
+      "last_event_at": "2026-11-12T11:05:13.329Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/10/rollout-2026-11-10T19-40-08-01a1c61d-db30-7a62-9837-031a4c520426.jsonl",
+      "exported_file": "codex/session-002.jsonl",
+      "original_event_count": 1998,
+      "exported_event_count": 1998,
+      "secret_replacements": 168,
+      "sha256": "c12168bc5d481f44a2d464c3e3ea3591f99693eab87bb6a65a49c618211c5fe6",
+      "size_bytes": 5748544,
+      "source_snapshot_bytes": 5753447,
+      "event_type_counts": {
+        "session_meta": 1,
+        "event_msg": 1139,
+        "response_item": 513,
+        "world_state": 4,
+        "turn_context": 170,
+        "token_usage_record": 170,
+        "compacted": 1
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1cf6f-fe23-7642-aa9e-b425206dd8a9",
+      "created_at": "2026-11-12T11:06:26.033Z",
+      "last_event_at": "2026-11-12T15:56:40.146Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/12/rollout-2026-11-12T15-06-25-01a1cf6f-fe23-7642-aa9e-b425206dd8a9.jsonl",
+      "exported_file": "codex/session-003.jsonl",
+      "original_event_count": 1336,
+      "exported_event_count": 1336,
+      "secret_replacements": 24,
+      "sha256": "9bc8667b15091cb2b7920962b991cd2a79ae4eb6b98c4fc66571b3ce05d44079",
+      "size_bytes": 3587082,
+      "source_snapshot_bytes": 3587785,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 345,
+        "event_msg": 763,
+        "world_state": 1,
+        "turn_context": 113,
+        "token_usage_record": 113
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d079-b770-7b73-a793-5f5a2031f1f3",
+      "created_at": "2026-11-12T15:56:40.783Z",
+      "last_event_at": "2026-11-12T17:18:06.451Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/12/rollout-2026-11-12T19-56-40-01a1d079-b770-7b73-a793-5f5a2031f1f3.jsonl",
+      "exported_file": "codex/session-004.jsonl",
+      "original_event_count": 362,
+      "exported_event_count": 362,
+      "secret_replacements": 0,
+      "sha256": "aeb11ec4ec5fb9c00b940cf45ac675f4155e5f82cd35ece9b0245dd550cb256b",
+      "size_bytes": 1213917,
+      "source_snapshot_bytes": 1213917,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 96,
+        "event_msg": 204,
+        "world_state": 1,
+        "turn_context": 30,
+        "token_usage_record": 30
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d0c5-46ce-76a0-a453-b651662befe7",
+      "created_at": "2026-11-12T17:19:12.666Z",
+      "last_event_at": "2026-11-12T19:08:35.058Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/12/rollout-2026-11-12T21-19-12-01a1d0c5-46ce-76a0-a453-b651662befe7.jsonl",
+      "exported_file": "codex/session-005.jsonl",
+      "original_event_count": 977,
+      "exported_event_count": 977,
+      "secret_replacements": 32,
+      "sha256": "3ddbd8381d6d43db797c037f9d361027dd63d2957d0c5c5a3f40854becd6e2b7",
+      "size_bytes": 3079324,
+      "source_snapshot_bytes": 3079768,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 252,
+        "event_msg": 558,
+        "world_state": 1,
+        "turn_context": 83,
+        "token_usage_record": 82
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d129-6b86-78f0-ace8-03ca94ef1cf9",
+      "created_at": "2026-11-12T19:08:35.497Z",
+      "last_event_at": "2026-11-12T23:20:48.948Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/12/rollout-2026-11-12T23-08-35-01a1d129-6b86-78f0-ace8-03ca94ef1cf9.jsonl",
+      "exported_file": "codex/session-006.jsonl",
+      "original_event_count": 355,
+      "exported_event_count": 355,
+      "secret_replacements": 7,
+      "sha256": "1d8a233670892a93db041eaf3055b5a7a004ead5fd0cc02cda3daf88b249a9f9",
+      "size_bytes": 1223122,
+      "source_snapshot_bytes": 1223297,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 95,
+        "event_msg": 198,
+        "world_state": 2,
+        "turn_context": 30,
+        "token_usage_record": 29
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d212-6c3d-76b3-af17-14950cf53060",
+      "created_at": "2026-11-12T23:23:05.506Z",
+      "last_event_at": "2026-11-13T12:28:24.217Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/13/rollout-2026-11-13T03-23-05-01a1d212-6c3d-76b3-af17-14950cf53060.jsonl",
+      "exported_file": "codex/session-007.jsonl",
+      "original_event_count": 879,
+      "exported_event_count": 879,
+      "secret_replacements": 71,
+      "sha256": "acb3c2b488696faa7714eae61d0bd95818c9cd665bfb48035525b84fb6e65f1f",
+      "size_bytes": 2915700,
+      "source_snapshot_bytes": 2916076,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 228,
+        "event_msg": 500,
+        "world_state": 1,
+        "turn_context": 75,
+        "token_usage_record": 74
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d4e1-6747-73a1-aad4-1a703565cfa8",
+      "created_at": "2026-11-13T12:28:24.939Z",
+      "last_event_at": "2026-11-13T13:06:39.317Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/13/rollout-2026-11-13T16-28-24-01a1d4e1-6747-73a1-aad4-1a703565cfa8.jsonl",
+      "exported_file": "codex/session-008.jsonl",
+      "original_event_count": 340,
+      "exported_event_count": 340,
+      "secret_replacements": 18,
+      "sha256": "a1afd36c3b93a79e2ad73425dfef4519a4a69964153993911866c3251f1d21c9",
+      "size_bytes": 1172725,
+      "source_snapshot_bytes": 1172917,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 90,
+        "event_msg": 192,
+        "world_state": 1,
+        "turn_context": 28,
+        "token_usage_record": 28
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1d818-db99-76a3-b85f-a2e696b3dfff",
+      "created_at": "2026-11-14T03:28:04.754Z",
+      "last_event_at": "2026-11-16T00:36:42.726Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/14/rollout-2026-11-14T07-27-51-01a1d818-db99-76a3-b85f-a2e696b3dfff.jsonl",
+      "exported_file": "codex/session-009.jsonl",
+      "original_event_count": 2760,
+      "exported_event_count": 2760,
+      "secret_replacements": 273,
+      "sha256": "1c9d5853b726c4dfa364897e9748b53dd5b13268c211b8437c5f520185b612d6",
+      "size_bytes": 16837004,
+      "source_snapshot_bytes": 16848476,
+      "event_type_counts": {
+        "session_meta": 1,
+        "event_msg": 1281,
+        "response_item": 1106,
+        "world_state": 5,
+        "turn_context": 40,
+        "token_usage_record": 325,
+        "compacted": 2
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": true
+    },
+    {
+      "source_session_id": "01a1d819-60cf-75e2-9d02-4cf9f25d8979",
+      "created_at": "2026-11-14T03:28:24.767Z",
+      "last_event_at": "2026-11-15T15:08:08.832Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/14/rollout-2026-11-14T07-28-24-01a1d819-60cf-75e2-9d02-4cf9f25d8979.jsonl",
+      "exported_file": "codex/session-010.jsonl",
+      "original_event_count": 1637,
+      "exported_event_count": 1637,
+      "secret_replacements": 111,
+      "sha256": "9f4322cb09edfe7a93b2132b0bdba3f56e58921efc58d14fd8fd8085f67dc8ef",
+      "size_bytes": 5020583,
+      "source_snapshot_bytes": 5022149,
+      "event_type_counts": {
+        "session_meta": 1,
+        "event_msg": 924,
+        "response_item": 424,
+        "world_state": 3,
+        "turn_context": 142,
+        "token_usage_record": 142,
+        "compacted": 1
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1dfc2-368e-7cb0-b455-85cdbd8c6d45",
+      "created_at": "2026-11-15T15:10:09.977Z",
+      "last_event_at": "2026-11-15T23:35:58.173Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/15/rollout-2026-11-15T19-10-09-01a1dfc2-368e-7cb0-b455-85cdbd8c6d45.jsonl",
+      "exported_file": "codex/session-011.jsonl",
+      "original_event_count": 1107,
+      "exported_event_count": 1107,
+      "secret_replacements": 32,
+      "sha256": "20219a5a2e5ced819ecc5c66d5cecf64e70d6f28a6d8217974491826d8caac8b",
+      "size_bytes": 3202091,
+      "source_snapshot_bytes": 3202536,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 285,
+        "event_msg": 632,
+        "world_state": 2,
+        "turn_context": 94,
+        "token_usage_record": 93
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1e191-4c06-72a2-be1e-1251526eaa90",
+      "created_at": "2026-11-15T23:35:58.881Z",
+      "last_event_at": "2026-11-16T00:24:25.806Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/16/rollout-2026-11-16T03-35-58-01a1e191-4c06-72a2-be1e-1251526eaa90.jsonl",
+      "exported_file": "codex/session-012.jsonl",
+      "original_event_count": 350,
+      "exported_event_count": 350,
+      "secret_replacements": 37,
+      "sha256": "e73048f94c8861f031c4667c3067ec93f728517b91e3638f7cbad7128458c978",
+      "size_bytes": 1410708,
+      "source_snapshot_bytes": 1411269,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 93,
+        "event_msg": 197,
+        "world_state": 1,
+        "turn_context": 29,
+        "token_usage_record": 29
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    },
+    {
+      "source_session_id": "01a1e1c6-5621-7d90-ba2e-615cb15515ae",
+      "created_at": "2026-11-16T00:33:54.701Z",
+      "last_event_at": "2026-11-16T00:36:41.523Z",
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/16/rollout-2026-11-16T04-33-54-01a1e1c6-5621-7d90-ba2e-615cb15515ae.jsonl",
+      "exported_file": "codex/session-013.jsonl",
+      "original_event_count": 68,
+      "exported_event_count": 68,
+      "secret_replacements": 0,
+      "sha256": "73af34084afbff9f50bacf90dfb2f868c07f5b160a6e26d86e166be0c33b1650",
+      "size_bytes": 518096,
+      "source_snapshot_bytes": 518096,
+      "event_type_counts": {
+        "session_meta": 1,
+        "response_item": 21,
+        "event_msg": 35,
+        "world_state": 1,
+        "turn_context": 5,
+        "token_usage_record": 5
+      },
+      "source_complete_final_newline": true,
+      "source_grew_during_export": false
+    }
+  ],
+  "excluded_sessions": [
+    {
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/09/rollout-2026-11-09T13-31-22-01a1bfa5-e1db-7771-abe9-74f97a4208b2.jsonl",
+      "reason": "No project name or assignment reference in file contents; different project working directory."
+    },
+    {
+      "source_file": "/mnt/c/Users/ttcev/.codex/sessions/2026/11/09/rollout-2026-11-09T13-32-17-01a1bfa6-bbff-7590-9e30-8dc69ba29a4c.jsonl",
+      "reason": "No project name or assignment reference in file contents; different project working directory."
+    }
+  ],
+  "chatgpt": {
+    "status": "No conventional local ChatGPT exports found",
+    "searched_locations": [
+      "C:/Users/ttcev/Desktop",
+      "C:/Users/ttcev/Documents",
+      "C:/Users/ttcev/Downloads"
+    ],
+    "limitations": "No ChatGPT account, browser cookies, browser tokens or internal browser files accessed. Cloud-only and separately stored conversations require a user-provided export."
+  },
+  "source_issues": [],
+  "total_sessions": 13,
+  "total_events": 18054,
+  "total_secret_replacements": 1129,
+  "redaction_categories": {
+    "credential_format": 88,
+    "secret_assignment": 446,
+    "known_secret_literal": 548,
+    "url_password": 31,
+    "embedded_secret_field": 16
+  },
+  "verification": {
+    "all_discovered_relevant_sessions_included": true,
+    "event_counts_match": true,
+    "jsonl_valid": true,
+    "event_order_and_recursive_structure_preserved": true,
+    "all_event_types_including_service_events_preserved": true,
+    "source_snapshots_unchanged": true,
+    "known_environment_secret_literals_absent": true,
+    "method": "Recursive string-only redaction plus source-prefix verification, complete event-by-event structure/type checks and known-secret literal scan. Pattern-based detection cannot prove absence of every unlabelled or encoded unknown secret.",
+    "event_payload_type_and_role_counts_match": true,
+    "sha256_checks_pass": true,
+    "source_snapshots_have_complete_final_records": true,
+    "event_timestamps_match_in_order": true
+  }
+}
