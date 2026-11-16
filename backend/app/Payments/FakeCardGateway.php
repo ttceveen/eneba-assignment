@@ -15,7 +15,7 @@ class FakeCardGateway implements PaymentGatewayInterface
 
     private function assertDemo(): void
     {
-        abort_unless(config('payment.demo_enabled') === true && app()->environment(['local', 'testing', 'demo']), 403, 'Demo payments are disabled.');
+        abort_unless(config('payment.demo_enabled') === true && app()->environment(['local', 'testing', 'demo', 'production']), 403, 'Demo payments are disabled.');
     }
 
     public function create(Payment $payment): PaymentResult

@@ -363,10 +363,47 @@ class PaymentServiceTest extends TestCase
         $this->assertSame($before, Payment::count());
         $this->assertSame(403, $this->api('POST', '/api/payments/'.$payment->id.'/simulate', $user, ['result' => 'success'])[0]);
         config(['payment.demo_enabled' => true]);
-        app()->instance('env', 'production');
+        app()->instance('env', 'staging');
         $this->assertSame(403, $this->api('POST', '/api/payments/'.$payment->id.'/simulate', $user, ['result' => 'success'])[0]);
         $this->assertSame('pending_payment', $order->fresh()->status);
         $this->assertSame(0, DigitalKey::where('status', 'sold')->count());
+    }
+
+    public function test_production_fake_card_disabled_flag_blocks_creation_and_confirmation(): void
+    {
+        [$user, , $order] = $this->order();
+        $payment = $this->payment($user, $order);
+        app()->instance('env', 'production');
+        config(['payment.demo_enabled' => false]);
+        $before = Payment::count();
+        $this->assertSame(403, $this->api('POST', '/api/orders/'.$order->id.'/payments', $user, ['provider' => 'fake_card'], 'production-disabled')[0]);
+        $this->assertSame(403, $this->api('POST', '/api/payments/'.$payment->id.'/simulate', $user, ['result' => 'success'])[0]);
+        $this->assertSame($before, Payment::count());
+        $this->assertSame('pending', $payment->fresh()->status);
+        $this->assertSame('pending_payment', $order->fresh()->status);
+        $this->assertSame(0, DigitalKey::where('status', 'sold')->count());
+    }
+
+    public function test_production_fake_card_enabled_flag_completes_existing_flow_idempotently(): void
+    {
+        [$user, , $order] = $this->order();
+        app()->instance('env', 'production');
+        config(['payment.demo_enabled' => true]);
+        [$status, $body] = $this->api('POST', '/api/orders/'.$order->id.'/payments', $user, ['provider' => 'fake_card'], 'production-enabled');
+        $this->assertSame(201, $status);
+        $this->assertSame('pending', $body['data']['status']);
+        $id = $body['data']['id'];
+        $assigned = $order->items->sole()->digitalKeys()->orderBy('id')->pluck('id')->all();
+        foreach ([1, 2] as $attempt) {
+            [$status, $body] = $this->api('POST', '/api/payments/'.$id.'/simulate', $user, ['result' => 'success']);
+            $this->assertSame(200, $status);
+            $this->assertSame('succeeded', $body['data']['status']);
+        }
+        $this->assertSame('paid', $order->fresh()->status);
+        $this->assertSame($assigned, DigitalKey::where('status', 'sold')->orderBy('id')->pluck('id')->all());
+        $this->assertSame(2, (int) DB::table('game_popularities')->sum('purchase_count'));
+        $this->assertSame(1, $order->payments()->count());
+        $this->assertTrue(app()->environment('production'));
     }
 
     public function test_api_ownership_validation_and_key_delivery_without_cache_or_other_keys(): void
