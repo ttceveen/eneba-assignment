@@ -1,41 +1,27 @@
-# Режимы каталога и возврат к позиции
+# Catalog navigation
 
-Главный каталог остаётся на `/`; страница игры — `/games/:id`. Второй Router и страница `/games` не добавлялись.
+## Ordering and pagination
 
-- `/` или `?sort=popular` — популярность по умолчанию.
-- `/?sort=alphabetical` — All Games, первая страница.
-- `/?sort=alphabetical&page=3` — третья алфавитная страница.
+`GameController::index()` returns active games in 12-item pages. The default popular order joins `game_popularities` and sorts by `purchase_count DESC, game_id ASC`. `sort=alphabetical` uses `LOWER(games.name), games.id` without the popularity join. Other sort values use the default. Page input is validated against integer/offset overflow.
 
-Header All Games всегда открывает первую алфавитную страницу. Games и логотип открывают `/` с первой страницей популярности. Пагинация сохраняет sort и меняет только page. Обычный переход к странице/режиму начинает каталог сверху; Browser Back/Forward восстанавливают соответствующую запись истории.
+The header's Games link opens popular page 1; All Games opens alphabetical page 1. Search uses `q` and the existing search endpoint. URL query parameters are the source of catalog selection, not a separate global page store.
 
-## API
+## Returning from a game
 
-GameController читает sort. Popular сохраняет INNER JOIN с game_popularities и ORDER BY purchase_count DESC, game_id ASC. Alphabetical использует только games, ORDER BY LOWER(games.name) ASC, games.id ASC. Оба режима фильтруют is_active, выполняют paginate(12) в PostgreSQL и используют прежний GameResource. В links алфавитной пагинации добавляется sort=alphabetical. Другие значения sort сохраняют поведение popular.
+`catalogHistory.ts` validates catalog entries containing a history key, URL and optional reachable history index. `GameCard` and search-preview links pass that context when opening Game Details. The optional `includeSearch` mode preserves a searched catalog's query/page rather than replacing it with the earlier non-search catalog.
 
-Схема, модели, популярность, сидеры и endpoint отдельной игры не изменены. Backend не участвует в восстановлении прокрутки.
+The Game Details “Games” link returns to the originating URL, using a reachable history entry when available. Its fallback carries `restoreCatalogKey` for position restoration. Direct game entry without an originating link returns to `/`; it does not adopt an unrelated remembered catalog. The header Games/logo links remain explicit navigation to the default catalog.
 
-## Прокрутка
+`SearchPanel` retains its existing non-search catalog context for Clear search. Including search for game-return links does not change that behavior. Optional search-panel drafts are scoped by history entry; browser Back can restore the relevant panel state.
 
-`useCatalogScroll` хранит в sessionStorage небольшую запись для history key React Router: URL, scrollY, высоту main, ID карточки и её отступ от верхней границы окна. Данные игр не кешируются и весь каталог не загружается.
+## Scroll and async state
 
-Позиция сохраняется при прокрутке и перед переходом. Выбранная карточка отмечена data-game-id. Для Browser POP hook ждёт завершения запроса и отрисовки сетки. В useLayoutEffect он находит прежнюю карточку, восстанавливает её относительный отступ через один scrollTo с behavior=instant и открывает сетку до показа кадра. На время загрузки резервируется прежняя высота main, но прежний scrollY заранее не применяется. Нативное автоматическое восстановление отключено в общем Router, чтобы оно не конфликтовало с асинхронной загрузкой.
+`useCatalogScroll` saves a visible/clicked game ID, offset, scroll Y and main height in sessionStorage. Restoration waits for API data and layout, then anchors the same game at its saved offset. If absent, it uses bounded scroll Y without fetching other pages. Normal new catalog navigation starts at the top. Storage failure leaves ordinary navigation usable without restoration.
 
-Если карточки больше нет на этой странице, используется сохранённый scrollY, ограниченный доступной высотой документа. Другие страницы для её поиска не запрашиваются. Открытие игры и обычные PUSH/REPLACE-переходы каталога начинаются сверху. При смене sort/page/history key загрузчик перемонтируется и отменяет старый fetch через AbortController.
+The loader remounts on history/query/sort/page changes and aborts stale requests. Catalog/game error states now offer local Retry. Retry repeats only that GET without a document reload or parameter reset; a loading state removes the retry action and a synchronous disabled guard prevents duplicate clicks.
 
-Восстановление относится к браузерным Back/Forward. Обычная ссылка Games/логотип остаётся командой открыть popular page 1. Если sessionStorage запрещён браузером, навигация и загрузка продолжают работать без сохранённой позиции.
+## Verification and limits
 
-## Проверки
+`navigation-feedback.browser.mjs` checks sort/search/page and scroll restoration, direct entry, Clear search, single-request Retry and return context after an error. Native API and PostgreSQL tests cover ordering/pagination/search. [Testing commands](testing.md) also run the mobile/purchase regression suites.
 
-Backend проверен отдельно на временной PostgreSQL: **27 tests, 481 assertions**, без предупреждений. Покрыты default popular, case-insensitive alphabetical, ID tie-break, активность/total, страницы, отсутствие дубликатов, sort в links, отсутствие JOIN для alphabetical и прежние детали игры. Рабочие HTTP-запросы обоих режимов дали 12/12/12/4 и total=40; полный порядок совпал с соответствующими PostgreSQL SELECT. Реальные данные для тестов не менялись.
-
-Frontend: TypeScript и production Vite build прошли. Chromium:
-
-- All Games / popular, URL, страницы, reload и история; быстрый переход между режимами не принимает запоздавший ответ;
-- ширины 320, 375, 768, 1024, 1440 px: карточки равной высоты, горизонтального скролла нет;
-- возврат с первого/третьего ряда и страницы 4 в обоих режимах, включая мобильный экран;
-- задержанный API: до данных scrollTo не вызывается, после данных/DOM — один instant scroll; в видимых кадрах после восстановления карточка сохраняет offset с погрешностью не более 1.5 CSS px;
-- изменение отступа заголовка на +32 px компенсируется по ID карточки; при её отсутствии срабатывает scrollY без запроса других страниц;
-- Forward открывает игру сверху, последующий Back сохраняет каталог; ordinary pagination/mode switch прокручивают вверх;
-- loading/empty/error сохранены; uncaught JavaScript errors=0.
-
-Главная и возврат с третьего ряда алфавитной страницы 3 дополнительно проверены напрямую на работающем localhost:5173 без перехватов запросов. Ошибок JavaScript нет.
+Historical verification included 12/12/12/4 records for the 40-game fixture, offset restoration within roughly 1.5 CSS px and five viewport widths. Those observations describe the measured fixture, not a fixed production total or a large-catalog performance guarantee. The UI currently renders all page-number buttons; a large catalog would need a bounded window.

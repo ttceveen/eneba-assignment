@@ -1,75 +1,38 @@
-# Авторизация Laravel Sanctum Bearer
+# Authentication
 
-## Механизм
+## Backend
 
-Используются существующий Laravel Sanctum и personal access tokens сроком 7 дней. При register/login API возвращает `{data: user, token, token_type: "Bearer"}`. Пароли по-прежнему обрабатываются Laravel hashed cast/Hash; профиль не включает пароль или хеш. Plaintext токен возвращается только при выдаче, Sanctum хранит его хеш в существующей personal_access_tokens.
+Laravel Sanctum issues personal access Bearer tokens with a seven-day expiration. Register/login return `{data: user, token, token_type: "Bearer"}`. Only the issuance response contains the plaintext token; Sanctum stores its hash. User passwords use Laravel hashing and are excluded from public responses.
 
-`auth:sanctum` проверяет Authorization: Bearer, `sanctum.guard=[]` исключает web sessions. HasApiTokens подключён к User, прежний callback, запрещавший token retrieval, удалён. EnsureUserIsActive продолжает проверять blocked при каждом защищённом запросе, включая ранее выданные токены. Logout удаляет только currentAccessToken. Другие выданные токены остаются действительными до отзыва/истечения.
+`auth:sanctum` and `EnsureUserIsActive` protect Checkout, order/payment/key and account routes. `sanctum.guard=[]` excludes web-session fallback. Blocked accounts cannot reuse a previously issued token. Logout deletes only the current access token; independently issued tokens remain valid until revoked/expired.
 
-API больше не использует statefulApi(), sessions, CSRF cookies и XSRF-заголовки. Это не отключает web CSRF: стандартная web middleware сохранена и отдельно проверена тестом. Существующий пакетный `/sanctum/csrf-cookie` остаётся стандартным web endpoint Sanctum, но приложение его не вызывает и не использует для API-авторизации.
-
-## Frontend и хранение
-
-AuthProvider хранит только токен в **sessionStorage**, ключ `eneba:auth-token`. Профиль загружается через `/api/me`. При reload, фокусе и перед переходом на защищённые страницы сохранённый токен проверяется сервером. 401 удаляет его и сбрасывает авторизацию; blocked 403 также сбрасывает локальное состояние. Сетевые ошибки позволяют повторить проверку без удаления токена. Logout отзывает токен на сервере, затем удаляет локальную запись; при сетевой ошибке не сообщает об успешном выходе.
-
-Никакие токены не записываются в localStorage. Оставшийся старый ключ из localStorage удаляется без чтения; корзина и состояние каталога не затрагиваются. BroadcastChannel и синхронизация авторизации через cookies удалены: у независимых вкладок отдельный sessionStorage и отдельные токены. Новая вкладка без opener не наследует авторизацию. Если браузер скопировал sessionStorage из opener, копии одного токена будут отозваны вместе; при следующем /me или фокусе другая вкладка получит 401.
-
-sessionStorage сохраняется при reload и восстановлении процесса существующей вкладки в той же браузерной сессии. Это не постоянный вход: новая вкладка/полное завершение сессии не гарантируют сохранения. Восстановление закрытой вкладки зависит от штатного session restore браузера; дополнительные копии токена ради восстановления не создаются.
-
-Все fetch-запросы API используют `credentials: 'omit'`. Токен передаётся только в Authorization header для /me и /logout, не в URL, cookies или логах. Перед register/login нет CSRF bootstrap. Production-клиент до отправки запроса проверяет HTTPS API URL; HTTP разрешён только в development. Формы, Header, checkout/orders, redirect после входа, ошибки, загрузка и CSS не менялись.
-
-## API
-
-| Метод | URL | Результат |
+| Method | Route | Behavior |
 | --- | --- | --- |
-| POST | /api/register | first_name/last_name/email/password; 201 {data: user, token, token_type: Bearer} |
-| POST | /api/login | email/password; 200 с тем же форматом |
-| GET | /api/me | Authorization Bearer; 200 {data: user} |
-| POST | /api/logout | Authorization Bearer; 200 {message: Logged out.} |
+| POST | `/api/register` | First/last name, email and password; 201 with token/user |
+| POST | `/api/login` | Email/password; token/user |
+| GET | `/api/me` | Current active user |
+| POST | `/api/logout` | Revoke current token |
 
-user: id, first_name, last_name, email, status, created_at, updated_at. Валидация, нормализация email, rate limits и бизнес-правила сохранены. Validation/credentials: 422; нет/отозван/истёк токен: 401; blocked: 403; rate limit: 429. /checkout и /orders остаются защищёнными заглушками; оформление и история заказов не реализовывались.
+Validation/incorrect credentials return 422, unauthenticated requests 401, blocked accounts 403 and throttled auth requests 429. Register/login are throttled. The user resource lists ID, names, email, status and timestamps, not password hashes. Email normalization and database uniqueness supplement request validation.
 
-## CORS и production
+API calls are stateless Bearer requests with `credentials: 'omit'`; no CSRF-cookie bootstrap or XSRF header is used. Standard web CSRF protection remains in place. The package's CSRF-cookie route is not used by this SPA.
 
-Точные origins: localhost frontend и существующий FRONTEND_URL. Wildcard/patterns не используются. Разрешён Authorization; X-XSRF-TOKEN удалён из allowlist, supports_credentials=false. CORS обрабатывает api/* и существующий up.
+## Frontend lifecycle
 
-Bearer-схема работает с независимыми доменами Vercel/Render: общий домен, reverse proxy и third-party cookies не нужны. Production frontend должен использовать HTTPS VITE_API_BASE_URL, backend — существующий HTTPS URL Render. Значения production env, Dockerfile, DNS, proxy и инфраструктура в этой задаче не менялись. Настройки web session cookies сохранены, но API их не использует. Доступность реального production не проверялась и deployment не выполнялся.
+`AuthProvider.tsx` stores the token only in sessionStorage under `eneba:auth-token`. `/me` restores the profile on reload, focus and protected-route transitions. Abort/version checks reject stale responses. A failed Logout schedules a fresh account check rather than leaving a permanently loading protected route. A successful explicit Logout emits `logoutRevision` after the existing revoke flow.
 
-## Проверки
+401/403 clear invalid authorization. Temporary transport/server failures preserve the stored token and allow retry. A transient missing profile is not proof of account switching. `RequireAuth` waits for verification and preserves the requested Checkout/order/PayPal return URL through login/register.
 
-```sh
-docker compose exec -T backend php artisan test
-docker compose exec -T frontend node --test tests/*.test.mjs
-docker compose exec -T frontend npm run lint
-docker compose exec -T frontend npm run build
-```
+`CartProvider` uses the successful Logout signal and stable confirmed `user.id` to clear the previous basket and UI state. It does not clear merely because auth is loading or temporarily unverifiable. See [cart isolation](frontend-cart.md). Retiring the obsolete localStorage auth-token entry is separate from cart storage.
 
-- Backend: **99 passed**, 1053 assertions, SQLite :memory:. Регистрация, hash/public response, срок ровно 7 дней с точностью хранения timestamps, login/me, validation, blocked old token, current-token-only logout, invalid/revoked/expired token, отказ web session, сохранение реального web CSRF и отсутствие API Set-Cookie.
-- Frontend: **128 passed**. Один POST register/login без CSRF, Authorization header для /me/logout, credentials omit, ошибки, malformed responses, HTTPS guard production с отказом до fetch при HTTP.
-- TypeScript app/node, Oxlint (0 warnings/errors), Pint и production build прошли. Сборка выполнена во временной копии без публикации.
-- Chromium на http://localhost:5173 с настоящим API/PostgreSQL localhost:8000: register, redirect в orders, reload, /me, sessionStorage-only credential, независимые токены вкладок, logout и replay отозванного токена401, реальное истечение через изменение expires_at временного тестового токена, автоматическая очистка sessionStorage при401, wrong password, blocked token403 и blocked login, отсутствие CSRF запросов/заголовков и cookies, отсутствие токена в localStorage, ширины 375/768/1440, отсутствие необработанных JS-ошибок.
-- Перезапуск процесса существующей вкладки проверен через CDP Page.crash/Page.reload: sessionStorage сохранился, реальный интерфейс Checkout восстановился после /me. После намеренного crash Playwright помечает Page как crashed; успешное восстановление интерфейса проверено непосредственно CDP Runtime.evaluate.
-- Временный локальный пользователь и его токены удалены после проверки. Neon не использовался.
+Each independent browser tab has its own sessionStorage. A browser may copy an opener's token to a new tab; revoking that shared token invalidates both copies at their next check. Session restoration after closing/restarting a tab depends on browser behavior; the application does not maintain an extra persistent credential copy.
 
-## Изменённые файлы этого перехода
+## Security and deployment
 
-Backend:
-- app/Http/Controllers/AuthController.php
-- app/Models/User.php
-- app/Providers/AppServiceProvider.php
-- bootstrap/app.php
-- config/sanctum.php
-- config/cors.php
-- tests/Feature/AuthTest.php
-- tests/Feature/CorsTest.php
+The production frontend rejects an HTTP API URL before sending protected requests. Use the HTTPS backend URL and configured frontend origin. CORS permits the configured origin and local development origin, allows Authorization/Idempotency-Key and does not enable credential cookies.
 
-Frontend:
-- src/api/auth.ts
-- src/api/games.ts
-- src/auth/AuthProvider.tsx
-- src/auth/context.ts
-- tests/auth.test.mjs
+sessionStorage is readable by JavaScript: it limits persistence, not XSS impact. Keep normal JSX escaping and avoid untrusted HTML/script injection. There is no automated expired-token pruning job in this repository. API authorization remains server-side; React route guards do not grant access to another user's order.
 
-Документация: docs/authentication.md.
+## Verification
 
-Существующие изменения сохранены. Все миграции сверены по контрольным суммам и не менялись; новых/удалённых миграций нет. Структура users и бизнес-логика не менялись. Зависимости не добавлялись; commit/push/deploy не выполнялись. Функциональных блокеров по локальным проверкам нет.
+[Testing guide](testing.md) documents the SQLite auth/CORS tests and controlled browser suites. Existing coverage includes hashed/private responses, expiration, revoked/blocked tokens, web-session rejection, real web CSRF, login destination preservation, stale response ordering, failed Logout recovery and cart ownership boundaries. No production login is required for these tests.

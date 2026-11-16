@@ -1,92 +1,61 @@
-# Frontend purchase flow
+# Frontend Checkout
 
-## Pages and API
+## Components and flow
 
-Existing React Router/AuthProvider/Sanctum Bearer and CartProvider are retained.
+The implemented route sequence is catalog, `GameDetails`, `Cart`, `Checkout`, `PaymentPage`, and `Success`. PayPal adds `PayPalReturn`. `RequireAuth` protects Checkout/order/return routes and preserves their destination through login/register.
 
-- /cart: existing remove/quantity/empty/loading/error UI. Quantity buttons now apply deltas to the latest provider snapshot, avoiding stale-render values during rapid clicks. Totals and Header count update through the same provider, with the existing eneba:cart array of offerId/quantity. Limit 20 and stock clamping remain.
-- /checkout: protected entry point. Reads a fresh cart snapshot, stores an immutable request body and UUID idempotency key per user, records the cart allocation, then POSTs checkout. Network failures/reload reuse that request/key. A definitive 409/422 lets the user return to cart and begin again after refreshing availability. Empty carts never POST.
-- /orders/:id: protected payment page. Loads the existing order, product/seller names, fixed server prices, status and payments. Displays the original reserved_until countdown. Client time never renews a reservation; deadline triggers a server refresh once. Pending orders may be cancelled. Expired/cancelled orders offer return to cart.
-- /orders/:id/success: verifies paid on the backend, removes only locally tracked purchased units once, then fetches keys. Keys stay solely in component memory, are absent from URLs/storage/logs, and support clipboard copying with success/failure feedback. Cart-storage errors do not prevent key retrieval.
+- `Cart.tsx` resolves saved offer IDs through the existing batch GET, calculates display totals with integer cents/BigInt, and keeps unavailable offers removable. Checkout is disabled until all saved items resolve as available.
+- `Checkout.tsx` uses the cart snapshot and a per-user/tab checkout attempt. It calls the existing POST `/api/checkout` with only offer IDs/quantities and a stable `Idempotency-Key`. A known order is resumed rather than created again.
+- `Payment.tsx` loads the server order, its fixed item prices, original deadline and existing attempts. It never treats a local choice as proof of payment.
+- `Summary.tsx` renders full order details and the server-confirmed total. It is also used on Success.
 
-Account checks and login/register redirect allowlists now include the two order routes. Existing 401 invalidation uses the same AuthProvider; an old response cannot clear a newly changed token. Demo-disabled 403 does not erase a valid login.
+## Payment actions
 
-## Payment recovery
+Fake Card is selected by default when no pending attempt determines the method. Its success/failure radio choices drive the existing demo simulate endpoint; no real card details are collected. A confirmed decline allows an explicit retry within the original reservation. A pending attempt keeps its existing provider and displays: “Payment method is locked for the current payment attempt.”
 
-Only the fake-card demo is offered, with Successful payment / Failed payment radio options and no card inputs. Pending attempt information is stored as IDs, idempotency key and chosen demo result; no key material or card data is stored.
+PayPal creation opens a validated existing Sandbox Approval URL. **Continue in PayPal** opens that URL again; it does not create a payment or confirm it. **Confirm PayPal payment** resumes the existing confirmation path and can initiate capture. The duplicate status-check link was removed. Explanatory text distinguishes external approval from server confirmation.
 
-Before paying or after an uncertain result, GET order is used to reconcile state. If a pending attempt exists it is resumed; if payment creation needs retry it uses the same stored key. Unknown outcomes require Check payment status, not automatic creation. A confirmed failed attempt allows an explicit new attempt/new UUID, keeping the same order/deadline. Payment and order statuses come from the server; choosing success does not itself make the UI paid.
+Busy/uncertain states disable unsafe actions. The existing lock refs prevent duplicate clicks. Creation loss retries the same stored attempt/key; unknown outcomes first require refreshing the server order. There are no new payment endpoints or automatic replacement attempts.
 
-Buttons have synchronous in-flight guards as well as disabled states. Operations and data loads are aborted on unmount; cancelled responses do not navigate or replace current UI. Backend idempotency remains authoritative.
+## PayPal return
 
-Server prices are displayed for review before payment, even if they differ from cart estimates. Error messages are mapped by status and never render Laravel exception text. Purchased-key fetch failures have a retry action without repeating payment or cart subtraction.
+`PayPalReturn.tsx` accepts exactly one valid `token` PayPal Order ID. A normal return runs the existing confirmation automatically; `cancelled=1` does not automatically confirm or cancel. The explicit confirmation button can complete an approved payment, so it is not presented as a read-only status check.
 
-## Additive backend read changes
+After receiving a Payment, **Back to checkout** uses its `order_id`. Until then it falls back to the saved checkout context, or `/checkout` if none exists. A pending result preserves the cart and permits reopening an available Approval URL or explicitly retrying confirmation. Errors use `role="alert"` and do not expose provider/backend details. A return token alone never authorizes a purchase or key delivery.
 
-CheckoutController eagerly loads items.offer.game, items.offer.seller and descending payments. OrderResource adds game/seller descriptions to items and a payments collection. PaymentResource adds the client-known idempotency_key so an interrupted create attempt can be matched exactly. No new endpoints, migrations or payment business logic were required. Ownership and Sanctum middleware are unchanged; ordinary order/payment responses still contain no digital keys.
+## Success and delivery
 
-## Cart completion journal
+`Success.tsx` fetches the server order before requesting keys. Before verified `paid`, it shows a neutral checking state. An unpaid order returns to Payment without requesting keys. A failed verification does not show “Purchase successful.”
 
-The cart storage format is unchanged. Additional eneba:cart-purchases metadata contains only user/order/request IDs and quantities. It tracks original checkout units separately from later additions. Decreases/removal reduce the original allocation first; readding the same offer does not reallocate it to the old order.
+After verified `paid`, the component applies this browser's purchase allocation journal and fetches the owner-only keys endpoint. Key loading can be retried without paying again. A delivery error states that payment is confirmed and does not claim successful delivery. Copy buttons use the Clipboard API, with manual-copy guidance if unavailable. Keys are not persisted to browser storage.
 
-On paid status, remove at most the server-purchased quantity, the original units still allocated, and the current quantity. Other offers and later additions survive. An applied receipt prevents subtraction on reload. A small write-ahead before/after snapshot recovers an interrupted two-key storage write; ambiguous later edits are preserved rather than overwritten.
+## Errors and Retry
 
-Clearing depends on this browser's journal. If storage was cleared or purchase completed in another browser without a matching record, the current cart is preserved. localStorage still has the existing cross-renderer read-modify-write limitation: no claim of atomic multi-tab transactions is made. Server orders/payments remain protected by PostgreSQL locks and constraints.
+Messages distinguish order creation, payment initiation, uncertain confirmation, order loading and key loading. They retain actionable HTTP guidance without rendering raw Laravel/provider exception text. A timeout never states that no payment occurred.
 
-Only one current checkout is resumed per user/tab. Back to cart from a closed order clears its entry; paid completion clears it. Session metadata is not a server cart, contains no digital keys, and does not replace authorization.
+- Checkout Retry reuses its request key and original cart attempt.
+- Payment refresh reads the current order before resuming uncertain work.
+- PayPal confirmation retries the same external order.
+- Success retries order/key reads, not payment creation or capture.
 
-## Verification commands
+When the initial reservation countdown ends, Payment refreshes the server once. It no longer keeps displaying `0:00` or an endless “checking” message. A server-pending response is described as awaiting payment; the frontend does not assert that a protected reserve expired or was extended.
 
-No new dependencies were installed. Existing Node tests and Chromium/Playwright toolchain are used.
+## Mobile behavior
 
-```sh
-docker compose exec -T frontend node --test tests/*.test.mjs
-docker compose exec -T frontend npx tsc -b --pretty false
-docker compose exec -T frontend npm run lint
-docker compose exec -T frontend npx vite build --outDir /tmp/eneba-checkout-build --emptyOutDir
+On screens up to 900 px, Payment shows a compact server total, method choices and the single primary payment action before secondary information. Full order details are initially collapsed behind an accessible button with `aria-expanded` and `aria-controls`. Keyboard activation expands the same details. Desktop retains full details on the left and payment controls on the right.
 
-PLAYWRIGHT_MODULE_PATH=/path/to/existing/playwright/index.mjs \
-FRONTEND_BASE_URL=http://localhost:5173 node --test frontend/tests/*.browser.mjs
-```
+At up to 800 px, Cart moves its one existing Checkout action into a fixed bottom dock with the same total/disabled conditions. Bottom spacing and scroll margins keep final content reachable; `safe-area-inset-bottom` is included. Quantity hit areas are at least 44 by 44 px. The narrow Game Details cover/spacing is reduced without changing image proportions or adding a sticky purchase button.
 
-For the real-browser integration with an actual Laravel server and disposable PostgreSQL:
+## Persistence and account boundaries
 
-```sh
-PLAYWRIGHT_MODULE_PATH=/path/to/existing/playwright/index.mjs \
-FRONTEND_BASE_URL=http://localhost:5173 bash scripts/tests/frontend-checkout-e2e.sh
-```
+`CartProvider` stores an offer ID/quantity array under `eneba:cart`. `eneba:cart-owner` records a stable confirmed user ID. Successful explicit Logout clears state, storage and notices. A confirmed change of ID clears the prior basket before it is shown to the new user. Loading, temporary auth errors, reload and restoration of the same ID preserve it. A cart without an owner marker is treated as a guest cart.
 
-On Linux, retain LD_LIBRARY_PATH required by the existing Chromium installation. The script uses existing Docker images (--pull=never), a private network, tmpfs PostgreSQL and an isolated backend copy with secrets/config caches excluded. Only local port 8011 is published. Real-E2E test is skipped unless CHECKOUT_SANDBOX_API_URL is explicitly supplied; it refuses non-local/non-8011 URLs. Containers/network are removed on exit.
+The ownership boundary invalidates snapshots and remounts the existing UI subtree to dispose temporary notices and abort old requests. Storage synchronization does not adopt/overwrite another owner's cart. This remains a browser-local cart, not separate server-backed account baskets. See [cart details](frontend-cart.md).
 
-Chromium forwards API traffic to this sandbox and performs actual registration, checkout, declined payment, successful retry, key delivery/copy and reload. Fixture stock is six synthetic keys; two are sold and four remain. No manual API calls are needed in the user flow. Working 493-key stock and Neon are never used.
+`checkout/session.ts` stores checkout/payment attempt IDs and idempotency metadata in sessionStorage, scoped by user/order. `cartPurchases.ts` tracks the original checked-out quantities separately from later edits. Paid completion subtracts only the original allocation, once; a missing/ambiguous journal preserves the current basket rather than guessing. This journal is not authorization and contains no key material. Logout/account isolation does not cancel server orders or reset payment attempts.
 
-Controlled-browser tests additionally cover unknown outcomes, retry keys, expiry, cart removal/readdition, later offers, double clicks, clipboard, reload, API errors and mobile width. Native tests cover journal recovery/allocation and API transport/validation. Existing auth F04 and cart F02/F03 browser suites remain in place.
+## Verification and limits
 
-## Limits
+Use [testing instructions](testing.md). Controlled browser suites cover auth redirects, duplicate clicks, return context, continuation versus confirmation, pending/error/deadline states, disclosure controls, cart synchronization/isolation and paid-only delivery. The opt-in real Laravel/PostgreSQL E2E covers a Fake Card decline, successful retry and synthetic key delivery.
 
-No real providers, frontend order history, email or background polling were added. Payment state refreshes on page load, user action and displayed expiry. Product/seller names come from current related records; immutable unit prices come from order_items. The frontend does not release inventory or decide whether a payment succeeded.
-
-## Files in this frontend milestone
-
-Created:
-
-- frontend/src/api/checkout.ts
-- frontend/src/checkout/session.ts, cartPurchases.ts, useConnection.ts
-- frontend/src/pages/Checkout/Checkout.tsx, Payment.tsx, Success.tsx, Summary.tsx, Checkout.module.css
-- frontend/tests/checkout.test.mjs, purchase-flow.browser.mjs, purchase-real.browser.mjs
-- scripts/tests/frontend-checkout-e2e.sh
-- docs/frontend-checkout.md
-
-Updated:
-
-- frontend/src/App.tsx
-- frontend/src/auth/AuthProvider.tsx
-- frontend/src/pages/Auth/Auth.tsx
-- frontend/src/cart/CartProvider.tsx, context.ts
-- frontend/src/pages/Cart/Cart.tsx
-- frontend/tests/checkout-auth.browser.mjs, README.md
-- backend/app/Http/Controllers/CheckoutController.php
-- backend/app/Http/Resources/OrderResource.php, PaymentResource.php
-- backend/tests/Postgres/CheckoutServiceTest.php, PaymentServiceTest.php
-
-Verification result: 140 native frontend tests; 45 controlled Chromium tests plus one separately executed real Laravel/PostgreSQL browser E2E; 99 main backend tests; 50 affected PostgreSQL tests. TypeScript, Oxlint (0 warnings/errors), production build in a temporary directory and diff whitespace checks passed. Tracked dist files were restored after the first verification build; no compiled bundle changes are part of this milestone. No working DB migrations, seeds, real-key reservations, secret changes, deploy or Git commits were performed.
+There is no order-history listing, email delivery, automatic provider polling, refund flow or background reconciliation. A protected uncertain PayPal reservation requires the recovery described in [payments](payments.md). Screens rely on current game/seller descriptions, while unit prices remain order snapshots.

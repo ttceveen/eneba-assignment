@@ -1,65 +1,108 @@
-# Demo payment backend
+# Payments
 
-## Scope and API
+## Scope and components
 
-PaymentController → PaymentService → PaymentGatewayRegistry → PaymentGatewayInterface → adapter. CheckoutService and InventoryService remain provider-independent and unchanged.
+Implemented payment methods are `fake_card` and PayPal Sandbox. There are no Live payments, refunds, webhooks or background reconciliation jobs.
 
-All routes require existing Sanctum Bearer authentication and active-user middleware. Other users' orders/payments return 404. Keys are never included in OrderResource or PaymentResource.
+`PaymentController` validates requests and returns `PaymentResource`; `PaymentService` owns local state changes. `PaymentGatewayRegistry` resolves configured adapters through Laravel's container. `PaymentGatewayInterface` defines `create(Payment)`, `confirm(Payment, context)` and `supportsSimulation()`.
 
-- POST /api/orders/{order}/payments, body {"provider":"fake_card"}, required Idempotency-Key header. Returns 201 with payment id, order_id, provider, status, amount/currency strings, external_id, redirect_url, error_code/error_message.
-- POST /api/payments/{payment}/simulate, body {"result":"success"} or {"result":"failure"}. Returns 200 with the immutable accepted result; state conflicts return 409.
-- GET /api/orders/{order}/keys. Only the owner of a paid order can read keys. Returns data.order_id and items[{order_item_id,offer_id,keys:[{id,key_value}]}]. Eloquent encrypted cast performs decryption. This is the only response that deliberately contains plaintext keys. Cache-Control: no-store/private, Pragma: no-cache, Expires: 0. Repeated reads return the same assigned sold keys, create no issuance records and do not mutate order state.
+`PaymentResult` carries a validated status, `externalId`, optional redirect/error fields and optional `captureId`. For PayPal, `externalId` remains the PayPal Order ID; `captureId` is separate. Gateways do not update local orders, reserve keys or create additional attempts.
 
-Bodies reject extra fields: no card numbers, CVV, expiry, holder or client-provided amount. Invalid input is 422, disabled demo is 403, state conflict is 409, uncertain gateway initiation is a sanitized 502. Do not log keys-endpoint response bodies.
+## API
 
-## Demo configuration
+All routes below require Sanctum Bearer authentication and `EnsureUserIsActive`. Foreign and unknown orders/payments return 404.
 
-config/payment.php maps allowed string codes to container-resolved adapters. User-supplied PHP class names are never instantiated. PAYMENT_DEMO_ENABLED defaults to false in .env.example. It was explicitly enabled only in ignored local backend/.env; no other environment values changed. FakeCard requires both the flag and APP_ENV local/testing/demo, and remains unavailable in production even with the flag.
+| Method | Route | Input / result |
+| --- | --- | --- |
+| POST | `/api/orders/{order}/payments` | Body contains only `provider`; required `Idempotency-Key`; 201 payment resource |
+| POST | `/api/payments/{payment}/simulate` | Body contains only `result`: success or failure; Fake Card only |
+| POST | `/api/payments/paypal/confirm` | Body contains only `paypal_order_id`; payment resource |
+| GET | `/api/orders/{order}/keys` | Owner-only delivery for a paid order; no-cache response |
 
-FakeCard is a deterministic simulator: success/failure is accepted solely for demo execution. It does not validate a real payment and never collects card details. Only configured simulation_gateways with supportsSimulation() may use the simulate endpoint; currently only fake_card. Real adapters must return false and must verify a trusted provider API.
+The frontend cannot submit a trusted amount, currency, payment status or Capture ID. `PaymentResource` includes payment/order IDs, provider, amount/currency strings, status, idempotency key, external Order ID, redirect URL and safe error fields. It does not expose Capture ID, credentials or digital keys. Keys are returned only by the dedicated paid-order endpoint.
 
-## Gateway contract
+## Local states and persistence
 
-PaymentGatewayInterface::create(Payment): PaymentResult starts/resumes a provider operation using the immutable internal payment ID as the external idempotency key. confirm(Payment, context): PaymentResult verifies its result. supportsSimulation(): bool declares demo capability.
+- Orders: `pending_payment`, `paid`, `expired`, `cancelled`.
+- Payments: `pending`, `succeeded`, `failed`, `cancelled`.
+- Digital keys: `available`, `reserved`, `sold`.
 
-PaymentResult is a typed readonly object with validated status (pending/succeeded/failed/cancelled), externalId, redirectUrl, errorCode and errorMessage. HTTPS redirect URLs and pending results support a future asynchronous adapter. It contains no card credentials. Adapters must verify external payment identity, amount and currency before returning succeeded.
+Order creation snapshots prices in `order_items`. A payment copies the server order amount and EUR currency. Payment attempt metadata includes `idempotency_key`, `request_fingerprint`, `external_id`, `redirect_url`, safe error fields, `confirmation_started_at` and `capture_id`.
 
-To add PayPal later: implement this interface, register its code/class in config/payment.php, configure credentials privately and add necessary trusted return/webhook endpoints. Those endpoints must verify provider authenticity before passing results to PaymentService::applyResult. No CheckoutService/InventoryService changes are needed. PayPal, webhooks and refunds are not implemented here.
+PostgreSQL enforces unique `(order_id, idempotency_key)`, nonnull `(provider, external_id)` and nonnull `(provider, capture_id)`. Partial unique indexes allow at most one pending and one succeeded payment per order. Service logic prevents new attempts after payment.
 
-## Payment creation and retries
+Pending results without a new redirect URL preserve the existing Approval URL. A supplied validated URL replaces it. A terminal result clears an absent redirect URL; later results do not revive a terminal payment.
 
-The service first commits any existing lazy expiration through CheckoutService. A short transaction locks the order, checks ownership/state/deadline and the existing attempt key. New attempts copy amount/currency from the order and start pending. UNIQUE(order_id,idempotency_key) protects persistence; the locked parent order serializes concurrent creation. A different provider with the same key is 409. The existing one-pending and one-succeeded partial UNIQUE indexes remain unchanged.
+## Fake Card
 
-The transaction ends BEFORE create() is called on the adapter. Public create/simulate reject being called from an enclosing DB transaction. Adapters and external HTTP calls must not hold inventory locks.
+`FakeCardGateway` is a deterministic simulator: no card fields, real card verification or money movement. It requires both:
 
-The same key returns the same attempt. If provider initiation was interrupted before storing external_id/redirect_url, replay resumes that attempt with its immutable payment ID as provider idempotency key. Concurrent resumes require idempotent adapter implementation; FakeCard uses a deterministic external_id.
+```php
+config('payment.demo_enabled') === true
+&& app()->environment(['local', 'testing', 'demo', 'production'])
+```
 
-A declined attempt is failed; order and keys remain reserved with the ORIGINAL deadline. A retry uses a NEW Idempotency-Key and creates a new attempt, only while the reservation is valid. Unknown transport errors leave the attempt pending with gateway_unavailable instead of falsely assuming that money was not taken; retry the SAME key to reconcile initialization. A new attempt is blocked while an unresolved pending attempt exists. Raw provider exceptions are not exposed.
+`payment.demo_enabled` comes from `PAYMENT_DEMO_ENABLED`, default false. Production is permitted only with explicit opt-in. The check runs in the constructor and again in `create()`/`confirm()`. Existing comments in the environment example may predate production opt-in; the gateway condition is authoritative.
 
-## Atomic completion and lock order
+Creation returns pending with `fake_card_{payment_id}`. Simulation returns succeeded or failed according to the requested demo result. A verified success follows the same atomic inventory/order completion as other providers. A decline preserves the cart and original reservation deadline. This provider must not be enabled for a real marketplace with valuable inventory.
 
-Order → Payment → Offers ascending ID → DigitalKeys ordered offer/id → game_popularities ascending game_id. Every operation locks Order first, so checkout cancellation/expiration cannot race through the same order. Provider calls are outside these transactions.
+## PayPal Sandbox configuration
 
-PaymentService::applyResult accepts only adapter-verified results internally, never raw client success for a real provider. It locks Order and Payment and returns an existing terminal result unchanged. Opposite repeated simulation cannot flip succeeded to failed or failed to succeeded.
+Backend configuration is in `config/payment.php`:
 
-For success, InventoryService::confirmSale verifies and sells the exact reserved keys. Statistics aggregate purchased units by game and increment existing purchase_count atomically. Order becomes paid and payment succeeded in the SAME outer transaction. offers.quantity does not change. Duplicate confirmations neither resell keys nor increment statistics again.
+| Variable | Purpose |
+| --- | --- |
+| `PAYPAL_ENABLED` | Explicitly enable the provider; disabled by default |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | Sandbox REST OAuth credentials, kept on the backend |
+| `PAYPAL_MERCHANT_ID` | Stored configuration field; not currently sent or checked as a separate payee constraint |
+| `PAYPAL_RETURN_URL` | Frontend `/paypal/return` URL |
+| `PAYPAL_CANCEL_URL` | The same frontend route with `cancelled=1` in the query |
 
-Sale/statistics use a savepoint. The deadline is checked after inventory locks and again after statistics updates. If it expires while waiting, sale/statistics are rolled back before CheckoutService expires the order and releases keys. The attempt becomes cancelled with late_success when a success arrived too late. The transaction commits release/statuses BEFORE returning HTTP 409; no succeeded payment is left attached to an unpaid order.
+For local development the return route is `http://localhost:5173/paypal/return` and the cancellation route is `http://localhost:5173/paypal/return?cancelled=1`. Use the deployed frontend's HTTPS origin when configuring the deployed demo. PayPal supplies its Order ID in the `token` query parameter. URLs come from trusted server configuration, not request input.
 
-late_success and external_id preserve a distinction for future real-provider handling: real money may have been charged and needs separate reconciliation/refund work. No refund is attempted here. The current simulator moves no money.
+Only `api-m.sandbox.paypal.com` is used for REST requests; approval links must use HTTPS and `www.sandbox.paypal.com`. `PayPalClient` disables redirects, applies connection/request timeouts and replaces provider failures with credential-safe exceptions. OAuth tokens use Laravel Cache with expiration and an early-refresh margin. Cache identity changes when credentials change.
 
-## Database and data preservation
+## Creation and approval
 
-New migration: 2026_11_13_000005_add_payment_attempt_metadata. Nullable fields for historical compatibility: idempotency_key varchar(128), request_fingerprint varchar(64), redirect_url text, error_code varchar(100), error_message varchar(255); UNIQUE(order_id,idempotency_key). Existing indexes/constraints are retained. Rollback refuses to discard populated metadata.
+1. `CheckoutService` validates the cart and reserves the actual keys.
+2. `PaymentService::create()` commits a pending attempt before provider HTTP.
+3. `PayPalGateway::create()` sends its stored decimal amount to Orders v2 with `intent=CAPTURE`, EUR, callback URLs and `NO_SHIPPING`.
+4. The create request uses stable `PayPal-Request-Id: paypal-create-{payment_id}`.
+5. The backend saves the PayPal Order ID and validated payer-action/approve URL.
+6. The browser opens that existing Sandbox URL for approval.
 
-The migration was applied only to verified local postgres/eneba. No historical rows, keys, encryption/HMAC secrets or remote configuration were changed. Existing 493 keys are not used by tests.
+A lost creation response may already correspond to an external order. Retry the same local attempt/idempotency key; do not create a replacement attempt merely because the request timed out.
 
-## Tests
+## Return, capture and confirmation
 
-PostgreSQL suite: tests/Postgres/payments.xml. It uses the same guarded empty disposable eneba_search_test/role/search-postgres alias and separate Docker network as existing suites. PAYMENT_DEMO_ENABLED=true is explicit in the test runner. Do not run against the working eneba database or Neon.
+`PayPalReturn.tsx` validates the token and uses the existing confirmation endpoint. A normal valid return automatically confirms; this is the existing flow and can perform capture. A `cancelled=1` return does not automatically confirm or cancel the local order. Its explicit confirmation button can still complete a payment approved in PayPal.
 
-Fixtures are synthetic and committed only in the disposable database so gateway calls execute with transaction level zero. A fixture async adapter checks this property. Tests cover retries, deadlines, paid-key access, cache prevention, provider isolation, outcome idempotency, UNIQUE constraints, statistics and rollback.
+`PaymentService::confirm()` finds the PayPal payment through both provider/Order ID and the current user's order. A short transaction locks order then payment, validates amounts/state/original reserved keys, and saves `confirmation_started_at` before HTTP. An existing marker is never reset or backdated.
 
-Concurrency uses two independent PHP processes/connections. A third connection gates the order row until both workers are observed in PostgreSQL Lock wait state. Scenarios: same result twice, competing attempts, same creation key, cancel versus success, expiration versus success.
+Outside the transaction, `PayPalGateway::confirm()` reads the same PayPal Order. It checks identity, CAPTURE intent, amount and EUR currency. Only an approved order without existing captures can trigger capture, using `paypal-capture-{payment_id}`. An existing capture is checked instead of captured again.
 
-Limits: no real providers, webhook authentication, refunds, background reconciliation or frontend. Pending attempts on orders cancelled/expired through checkout alone are reconciled when a payment result is processed; they cannot complete a sale. Future paid-order code must preserve immutable sold-key assignments.
+Success requires matching order identity, a valid Capture ID, matching amount/currency, capture `COMPLETED` and order `COMPLETED`. HTTP success, `APPROVED`, `PAYER_ACTION_REQUIRED` and a pending capture do not prove payment. Valid noncompleted capture information remains pending.
+
+A verified Capture ID is persisted in a separate short transaction before final completion. It cannot be replaced or reused by another payment. Its presence alone does not mark the order paid. If local completion fails after capture, another confirmation can reuse the provider's completed capture and finish the same purchase.
+
+## Atomic completion and key delivery
+
+`PaymentService::applyResult()` holds the order/payment locks. Success uses the original reserved keys, updates them to sold, increments purchase statistics, and marks order/payment paid/succeeded atomically. Savepoints protect against partial inventory/statistics updates. Repeated completion does not sell keys or increment statistics again.
+
+The inventory lock order is order, offers in ascending ID order, then keys in deterministic order. Provider calls never hold a DB transaction open. Checkout/payment transactions retry recognized concurrency errors up to three times.
+
+`keys()` checks ownership and `paid`, then returns only sold keys assigned to the order. Responses use `no-store`/private cache headers. General order/payment responses never contain key material. See [schema and fingerprints](checkout-schema.md).
+
+## Errors, retries and reservation recovery
+
+- Invalid input: 422; unauthenticated: 401; blocked/disabled provider: 403; foreign/unknown order: 404; state/inventory conflict: 409.
+- Provider creation/confirmation failures can return safe 502 responses. Raw provider bodies, credentials and transport exception chains are not exposed.
+- A timeout is an uncertain result, not proof that payment failed. Pending attempts block new independent attempts. Creation retries retain the same local/provider request IDs.
+- Ordinary reservations expire lazily on order access or related Checkout creation, not through a scheduler. Original deadlines are not extended by a failed payment.
+- A PayPal confirmation started before the deadline protects its original keys after that deadline and prevents cancellation. This also applies when a lookup still reports payer action required.
+
+Use **Continue in PayPal** to reopen the saved Approval URL and **Confirm PayPal payment** to confirm the same external order. After a lost response, reload the existing order and retry its confirmation. If capture is complete, the verified existing result can finish local delivery. If provider status remains uncertain, retain the keys and investigate manually; do not clear the marker, release stock or assert failure based only on elapsed time. There is no administrative recovery endpoint, refund workflow or background reconciler in this MVP.
+
+## Testing
+
+[Testing instructions](testing.md) cover the normal SQLite suite and disposable PostgreSQL `payments.xml`. Tests include demo production opt-in/opt-out, repeat/concurrent operations, ownership, wrong amount/currency/Capture ID, deadline crossing, pending/timeout recovery, local rollback and exact key delivery. PayPal requests are mocked; no real capture is required. The opt-in real browser E2E uses Fake Card and synthetic inventory only.

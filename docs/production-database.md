@@ -1,70 +1,55 @@
-# Обновление production-базы Neon
+# Authorized production database operations
 
-Все изменения схемы — только Laravel migrations. Сначала примените и проверьте их в локальной PostgreSQL Docker Compose. Production не обновляется при разработке, сборке, запуске приложения или деплое. Каждая операция Neon запускается вручную и требует отдельного явного подтверждения пользователя.
+All schema changes use Laravel migrations. Review and verify them against local/disposable PostgreSQL first. Production/Neon changes do not run during development, build, application startup or ordinary deployment. Each migration or selected seeder requires explicit user authorization.
 
-## 1. Проверить локально
+## Prerequisites
 
-Требуется Docker Desktop и команда `docker`, доступная в используемой PowerShell-сессии (`docker version`). Из корня проекта в PowerShell:
+Use Docker Desktop and Windows PowerShell 5.1+ with the Docker CLI available. Review migration `up()` methods and the intended seeder, and confirm a suitable recovery point/backup. An allowlisted Artisan command does not prove arbitrary PHP inside it is safe.
 
-```powershell
-docker compose exec backend php artisan migrate
-# Тесты используют SQLite in-memory, а не рабочую PostgreSQL.
-docker compose exec -T -e APP_ENV=testing -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory: -e DATABASE_URL= -e DB_URL= -e CACHE_STORE=array -e SESSION_DRIVER=array -e LOG_CHANNEL=null backend php vendor/bin/phpunit --fail-on-warning --do-not-cache-result
-```
+Use the [testing guide](testing.md) for SQLite in-memory and separate PostgreSQL suites. Never point `RefreshDatabase` or the disposable test configurations at working PostgreSQL or Neon. Do not delete data to make a migration/rollback succeed.
 
-Не запускайте тесты с RefreshDatabase на рабочей или production-базе. Для PostgreSQL-специфичной логики дополнительно используйте отдельную локальную тестовую PostgreSQL. Просмотрите `up()` новых миграций и выбранный сидер; перед production-изменением убедитесь, что доступна подходящая резервная копия/точка восстановления. Скрипт ограничивает команды, но не может доказать безопасность произвольного PHP-кода миграции или сидера.
+## Private configuration
 
-## 2. Подготовить приватный env-файл
+Prepare `backend/.env.production.local` privately, or an explicitly selected `-EnvFile`. Required script variables are `APP_ENV`, `APP_KEY`, `DB_CONNECTION` and `DATABASE_URL`; use the existing production key and the production/pgsql modes checked by the script. The file must use uppercase `KEY=value` lines without `export`, surrounding value quotes or spaces around `=`.
 
-Самостоятельно заполните `backend/.env.production.local`. Он уже исключён из Git и Docker build context; не используйте `git add -f`. Достаточная основа:
+The script accepts a direct Neon host ending in `.neon.tech`, not a `-pooler` host. The URL must require TLS and mandatory channel binding. URL-encode credential characters. Remove conflicting DB_URL and separate DB_HOST/DB_PORT/DB_DATABASE/DB_USERNAME/DB_PASSWORD entries. Preserve other application settings, including the independent fingerprint secret when writing encrypted inventory.
 
-```dotenv
-APP_ENV=production
-APP_DEBUG=false
-APP_KEY=base64:REPLACE_WITH_EXISTING_PRODUCTION_KEY
-DB_CONNECTION=pgsql
-DATABASE_URL=postgresql://USER:URL_ENCODED_PASSWORD@DIRECT_HOST.neon.tech/DATABASE?sslmode=require&channel_binding=require
-```
+Do not disclose the file or its values. Its `.env*` name is excluded from the production Docker build context. The script validates configuration without printing credentials and does not configure cloud services.
 
-Используйте существующий production APP_KEY и **direct connection URL** Neon (без `-pooler`). Ключи — uppercase `KEY=value`, без `export`, пробелов вокруг `=` и кавычек вокруг значения. Пароль внутри URL должен быть URL-encoded. Удалите из этого файла отдельные DB_HOST/DB_PORT/DB_DATABASE/DB_USERNAME/DB_PASSWORD и DB_URL: production-подключение задаётся только через DATABASE_URL. Остальные нужные приложению переменные можно сохранить.
+## Migrations
 
-Скрипт проверяет Neon-host, обязательный TLS и channel binding, не выводя значения. Настройки Render/Neon он не меняет; env-файл не копируется и не пересоздаётся.
-
-## 3. Миграции
+From the repository root:
 
 ```powershell
-# Только проверка конфигурации и план: Docker и БД не запускаются.
 .\scripts\production-db.ps1 -Action Migrate -DryRun
-# Реальная операция — только по вашему решению после локальной проверки.
 .\scripts\production-db.ps1 -Action Migrate
 ```
 
-Для запуска нужно вручную ввести **MIGRATE NEON**. Любой другой ответ отменяет операцию ещё до Docker build. После подтверждения скрипт собирает актуальный `backend/Dockerfile.prod` и выполняет `php artisan migrate --force --no-interaction` в одноразовом non-root контейнере. PHP/Composer в Windows, SSH и платные jobs Render не нужны.
+DryRun validates the private file and displays a plan; it does not invoke Docker or connect to the DB. The actual action requires the exact manually entered confirmation `MIGRATE NEON`. A different answer cancels before building or connecting. After confirmation it builds the current production image and runs `migrate --force --no-interaction` in a temporary non-root container.
 
-## 4. Сидеры — отдельная операция
+## Selected seeders
 
 ```powershell
 .\scripts\production-db.ps1 -Action Seed -Seeder GameSeeder -DryRun
 .\scripts\production-db.ps1 -Action Seed -Seeder GameSeeder
 ```
 
-Нужно отдельно ввести **SEED GameSeeder NEON**. Выполнится только `db:seed --class=GameSeeder --force --no-interaction`; миграции автоматически не запускаются. Текущий GameSeeder идемпотентен и не обновляет существующие игры. Для другого сидера явно укажите его класс и сначала проверьте его локально; общий DatabaseSeeder без необходимости не запускайте.
+This separate action requires `SEED GameSeeder NEON` and runs only the named seeder, not migrations. For another class, explicitly choose it and review its local behavior first. GameSeeder preserves existing games; the generic DatabaseSeeder uses dev-only factory support and is not an appropriate default production bootstrap. See [demo inventory restrictions](local-marketplace-offers.md).
 
-У скрипта нет параметра автоматического подтверждения, произвольной Artisan-команды или destructive migration action. Не передавайте фразу подтверждения через pipeline. Raw-вывод Docker/Artisan скрыт даже при ошибке, чтобы исключить утечку credentials; показываются этапы и код ошибки. После успеха проверьте приложение и ожидаемое поведение API. После ошибки не считайте всю операцию атомарной: исправьте причину и проверьте состояние перед отдельным повторным запуском с новым подтверждением.
+There is no automatic confirmation option, arbitrary Artisan action or destructive migration action. Never pipe confirmation text into the script. Each retry is a separately authorized operation after diagnosing the prior result; do not assume multiple migration files/seed operations are one atomic release.
 
-## 5. Проверка скрипта без Neon
+The script uses a private env file and suppresses raw Docker/Artisan output, including failure output, to avoid credential disclosure. It reports operation stages and exit codes. After a successful authorized action, verify the application through safe reads.
+
+## Offline script tests
 
 ```powershell
 .\scripts\tests\production-db.tests.ps1
 ```
 
-Это offline-тесты Windows PowerShell 5.1+: Docker и Read-Host подменены, env-файл содержит только фиктивные значения. Проверяются DryRun, отмена, подтверждения, точные команды, защита секретов, ошибки Docker и некорректная конфигурация. Реальный env-файл не читается, Docker и Neon не вызываются. Если Windows блокирует локальные `.ps1`, можно запустить только этот процесс через `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\production-db.tests.ps1`; глобальную execution policy менять не нужно.
+These tests use synthetic env values and mock Docker/Read-Host. They verify DryRun, cancellation, exact confirmations/arguments, invalid configuration, failure propagation and output redaction without accessing a real env file or Neon. If necessary, apply a process-only execution-policy exception rather than changing global policy.
 
-Для проверки собственного плана без credentials используйте `-EnvFile` с отдельным фиктивным файлом и `-DryRun`. Без DryRun другой файл допустим только для осознанной подтверждённой production-операции; проверки разрешают лишь direct Neon host с TLS/channel binding. Не подставляйте реальные production credentials в тесты.
+## Historical validation
 
-## Что проверено при подготовке
+The original workflow validation passed offline PowerShell 5.1 tests. Production Artisan behavior was also checked on a separate temporary PostgreSQL 17 TLS/SCRAM server: migrations applied and GameSeeder created 40 records, with repeat operations preserving them. A then-current SQLite smoke run had 13 tests/218 assertions. These are historical observations, not current suite counts or proof of a live Neon migration.
 
-- Windows PowerShell 5.1: offline-тесты подтверждений, DryRun, точных аргументов, ошибок и отсутствия секретов в выводе прошли.
-- Рабочая локальная PostgreSQL: `migrate` сообщил Nothing to migrate. Безопасная тестовая команда SQLite in-memory: 13 tests, 218 assertions, успешно.
-- Актуальный production-образ собран и проверен на отдельной временной PostgreSQL 17 с TLS/SCRAM: 4 миграции применены, GameSeeder создал 40 игр; повторные migrate/seed не добавили миграций или игр.
-- Neon и реальный production env-файл в проверках не использовались. Проверка PowerShell-Docker выполнена через подмену CLI: в доступной PowerShell-сессии Windows docker.exe не найден. Реальные Artisan-команды production-образа проверены отдельно через доступный Linux Docker CLI; полный запуск скрипта с нативным Windows Docker CLI и реальным Neon намеренно не выполнялся.
+In that validation session the Windows shell could not find native `docker.exe`; the PowerShell-to-Docker path was mocked, while image/Artisan behavior was exercised through the available Linux Docker CLI. This documents the boundary of the historical check, not a claim about a reviewer's current installation.

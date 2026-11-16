@@ -1,76 +1,37 @@
-# Корзина покупателя (frontend)
+# Frontend cart
 
-## Состояние и сохранение
+## Storage and operations
 
-Корзина доступна без авторизации на `/cart`. CartProvider использует React Context и hooks. Позиция определяется **offerId**, поэтому предложения разных продавцов одной игры не объединяются.
+`CartProvider.tsx` owns the cart and exposes it through `cart/context.ts`. `eneba:cart` remains a localStorage array of `{offerId, quantity}`; prices, full game records and purchased key material are not persisted there. `parseCart()` accepts positive safe integer IDs/quantities, deduplicates IDs and retains at most 20 unique offers. A full cart rejects a new offer with feedback while allowing changes to an existing offer.
 
-В localStorage, ключ `eneba:cart`, сохраняется только массив `{ offerId, quantity }`. Названия, цены, остатки и версии не сохраняются. Повторное добавление увеличивает quantity, счётчик Header показывает сумму единиц, а лимит считает только уникальные offerId.
+Mutations read the latest stored snapshot rather than trusting a stale render. Quantity buttons apply deltas and clamp against known positive stock. Storage events synchronize tabs without reapplying an old tab's cached stock. If writing fails, the provider keeps an in-memory cart and shows the existing storage warning.
 
-**MAX_CART_ITEMS = 20** определён один раз в `frontend/src/cart/cart.ts`. Новый 21-й offer отклоняется с сообщением «Your cart can contain up to 20 offers. Remove an offer to add another.». Существующее предложение можно добавлять повторно в пределах известного остатка, удаление освобождает место. Лимит применяется в parseCart, addCartItem, CartProvider и нормализации ID перед API.
+`resolveCartOffers()` requests only the saved bounded IDs. Missing/inactive/unavailable offers remain removable, are excluded from displayed totals and block Checkout. Loading/error keeps saved items; Retry/Refresh prices repeats the batch read. Display totals use integer cents/BigInt. Prices and availability are revalidated by the server at Checkout.
 
-Старые корзины с 21/101 позициями: невалидные строки отбрасываются, дубли объединяются с максимальным валидным quantity (прежнее правило), сохраняются первые 20 уникальных валидных предложений в исходном порядке. Остальные удаляются из localStorage при нормализации. Ошибка API и отсутствие предложения в ответе не являются причиной удаления сохранённой позиции.
+## Stock feedback
 
-### Синхронизация F02
+`rememberStock()` applies the existing `limitCartQuantities()` only if the response snapshot is still current. A real automatic reduction records its before/after quantities and displays one English status notice per offer in Cart or Game Details. Repeated identical stock reads do not append notices. Manual add/remove/quantity actions clear the relevant notice and never generate a stock-reduction notice. Stale rejected responses cannot announce a reduction that was not applied.
 
-Каждая локальная операция читает последний снимок localStorage, применяет изменение и синхронно сохраняет нормализованный массив. React-state обновляется вслед за этой операцией. Effect, сохранявший любой render-state обратно в storage, удалён.
+`AddToCartButton` reports successful addition, unavailable stock, stock limit and full-cart rejection. The header derives its badge from the same cart state.
 
-Событие storage не применяет event.newValue и не ограничивает данные известным старым stock вкладки: оно перечитывает текущее хранилище. При корректном каноническом снимке запись обратно не выполняется. Если внешний/старый клиент записал некорректную или oversized корзину, нормализуется именно последний прочитанный снимок; одинаковая каноническая строка повторно не записывается. sessionStorage события игнорируются.
+## Logout and account ownership
 
-Правило конфликтов — **последняя фактическая запись localStorage побеждает**. Новое независимое добавление в обычном последовательном сценарии сохраняет изменения другой вкладки, даже если React ещё не получил её storage event. Строго одновременные read-modify-write в разных renderer processes не атомарны: одна из операций может быть потеряна. Не используются блокировки/CRDT/серверное хранилище, полной атомарности не заявляется. Все записи приложения ограничены 20 позициями, вкладки сходятся к последнему сохранённому снимку.
+The metadata key `eneba:cart-owner` records the stable ID of the confirmed authenticated owner. A guest/legacy cart without a marker is adopted by the first confirmed user. Existing ownership cannot be reconstructed retroactively without that marker.
 
-При недоступном storage действует существующий режим работы в памяти с предупреждением. Несохранённые изменения этой вкладки сохраняются в памяти, а не затираются внешним снимком; межвкладочная синхронизация и сохранение при reload в этом режиме не гарантируются. Следующая успешная локальная запись восстанавливает обычный режим. Приложение не может принудительно исправить сохранённые данные, если браузер запрещает запись.
+- Successful explicit Logout clears React items, saved cart content, stock notices and temporary UI state. A failed Logout preserves the cart and existing auth recovery behavior.
+- A confirmed change of `user.id` clears the previous cart before displaying it to the new user. Names and email are not used as identity.
+- Loading, temporary auth/network errors, reload, same-user restoration and PayPal round trips preserve the cart.
+- Cleanup invalidates snapshot versions and remounts the existing UI subtree so old requests/temporary notices are disposed. Old results cannot restore the prior basket. Purchase completion checks the active owner before applying cart cleanup.
+- Storage synchronization refuses to adopt or overwrite a different owner's shared cart.
 
-### Асинхронные ответы
+This is a single browser-local cart, not independently saved server-side baskets for different accounts. Different-account tabs should not expect simultaneous independent persisted carts. Browser storage is not an authorization boundary; the API still checks ownership. If the browser refuses deletion/writes, in-memory cleanup can run but persistent deletion cannot be guaranteed.
 
-getGame/getOffers захватывают снимок корзины при начале запроса. Он содержит каноническое содержимое и локальный счётчик наблюдаемых изменений, который нигде не сохраняется. Ответ может ограничить quantity только при совпадении снимка. Поэтому старый ответ не перезаписывает последующие изменения, в том числе последовательность quantity 3 → 4 → 3. Существующий расчёт предельного количества через API не менялся (F01 не исправлялась).
+Cart isolation does not cancel an existing server order, release inventory, remove payment identities or claim that payment failed. Checkout/session and purchase-journal details are in [frontend Checkout](frontend-checkout.md).
 
-Внешнее изменение корзины обновляет syncRevision: открытая Cart повторно получает metadata, не продолжая показывать количество через устаревший stock. Старые запросы отменяются/игнорируются. Если снимок сменился до обработки ответа, Cart запускает запрос актуального снимка вместо применения старого. Без новых событий и действий нет автоматического повторного цикла. Глобального cross-tab version или транзакционного журнала нет; строгая одновременность имеет описанное выше ограничение.
+## Responsive behavior
 
-## Загрузка предложений
+Desktop keeps the existing list and order-summary layout. At widths up to 800 px the one existing Checkout button appears in a fixed bottom dock with the current total and identical availability rules. Bottom padding/scroll margins keep content reachable, including the final item, and CSS includes the bottom safe-area inset. Quantity hit areas are at least 44 by 44 px.
 
-`GET /api/offers?ids=12,18,25` возвращает `{data: [{id, game: {id,name,img}, seller: {id,name}, price, currency, quantity, available}]}`. `price` — decimal string, валюта текущего маркетплейса — EUR. Неизвестные ID пропускаются. Пустой список даёт пустую коллекцию. Максимум 100 ID; неправильный формат/переполнение/превышение лимита дают 422. Дубли удаляются (лимит применяется до удаления дублей).
+## Verification
 
-Для стабильного непустого снимка frontend делает один пакетный запрос максимум 20 уникальных положительных safe integer ID. Пустые/некорректные ID не запрашиваются, дубли удаляются. API по-прежнему поддерживает 100 ID; контракт backend не менялся. Перебора каталога нет. Локальное изменение quantity при готовых данных не вызывает fetch; внешний storage update, смена набора ID, устаревший ответ или Refresh prices запускают проверку свежего снимка.
-
-Backend выполняет три SQL-запроса независимо от количества предложений: предложения с коррелированным COUNT ключей status=available, игры, продавцы. Доступное количество ограничено также существующим Offer.quantity. available учитывает остаток и активность предложения, игры и продавца. Значения ключей не загружаются и не возвращаются.
-
-Недоступные и отсутствующие предложения остаются в localStorage и отображаются как недоступные Offer #ID; они исключены из суммы. API-ошибка не означает удаление товара. Цены из localStorage игнорируются, деньги рассчитываются в целых центах. Корзина не резервирует ключи; окончательная серверная проверка будет частью будущего checkout.
-
-## Интерфейс
-
-- Add to cart на существующих предложениях страницы игры, подтверждение добавления и блокировка по известному остатку.
-- Активная ссылка корзины и счётчик в Header.
-- Адаптивная страница: обложка/существующая заглушка, игра, продавец, цена единицы, количество ±, стоимость позиции, Remove, итоговая сумма, Continue shopping.
-- Refresh prices повторяет чтение текущих API-данных.
-- Пустая корзина предлагает вернуться к каталогу. Недоступные позиции не включаются в сумму и блокируют продолжение до удаления.
-- Proceed to checkout ведёт на защищённый `/checkout`: гость перенаправляется на `/login`, после входа возвращается обратно. Заказы, оплата и резервирование не выполняются. См. `authentication.md`.
-
-Добавление в корзину не меняет offers.quantity и не резервирует ключи. Итоговая серверная проверка цен/остатков относится к будущему checkout.
-
-## Проверки F02/F03 (13 ноября 2026)
-
-До изменений добавлены и получены падающие регрессии F02 (stock старой вкладки 2 затирает новое quantity 3) и F03 (21/101 позиций). Дополнительно до локального version guard воспроизведён случай 3 → 4 → 3 со старым API-ответом.
-
-- Native frontend: 131 passed, включая прежние API/auth/cart cases и новые лимит/normalization/ID cases.
-- Chromium: 14 cart-sync regression cases + 9 неизменённых AuthProvider F04 cases. Реальный интерфейс `http://localhost:5173`, управляемые API-ответы, отдельные контексты и реальные вкладки/storage events. Рабочая БД не вызывается.
-- Проверены add/set/remove sync, stale event payload, два конфликтующих изменения quantity, две разные добавляемые позиции, две попытки добавить к 19 позициям, отсутствие echo loops, reload обеих вкладок, delayed details/cart API, изменение и возврат quantity, сообщение лимита, повтор существующего offer при заполненной корзине (20 позиций / 21 единица), legacy oversized, invalid/duplicate IDs, API503/retry, unavailable offers и storage failure.
-- TypeScript app/node, Oxlint и production build проверяются отдельными командами. Сборка выполняется во временной копии без публикации.
-
-Команды запуска — в `frontend/tests/README.md`. Browser suite использует уже установленный Playwright/Chromium; зависимости проекта не добавлялись.
-
-## Файлы F02/F03
-
-- frontend/src/cart/cart.ts
-- frontend/src/cart/CartProvider.tsx
-- frontend/src/cart/context.ts
-- frontend/src/cart/resolveOffers.ts
-- frontend/src/components/AddToCartButton/AddToCartButton.tsx
-- frontend/src/pages/Cart/Cart.tsx
-- frontend/src/pages/GameDetails/GameDetails.tsx
-- frontend/tests/cart.test.mjs
-- frontend/tests/cart-api.test.mjs
-- frontend/tests/cart-sync.browser.mjs (создан)
-- frontend/tests/README.md
-- docs/frontend-cart.md
-
-Backend, расчёт остатков F01, авторизация/F04, checkout, зависимости и CSS не менялись в этой задаче. Backend-тесты не запускались, поскольку backend не менялся. Commit/push/deploy не выполнялись.
+[Testing guide](testing.md) covers native cart arithmetic/normalization and browser cases for stale details, repeated/rapid edits, cross-tab synchronization, oversized legacy carts, disabled storage, stock feedback, account switching, Logout, API failures and mobile dock behavior. The existing real E2E verifies subtraction of only purchased units. Read-modify-write localStorage operations are not a claim of atomic multi-renderer transactions.

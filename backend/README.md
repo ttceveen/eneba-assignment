@@ -1,58 +1,35 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Marketplace backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel 13 / PHP 8.4 REST API backed by PostgreSQL 17. See the [root README](../README.md) for Docker setup, demo seed order and deployment.
 
-## About Laravel
+## Structure
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- `app/Http/Controllers`, `Resources`, `Middleware`: request validation, explicit public responses, Sanctum and active-account checks.
+- `app/Services/CheckoutService.php`: server-priced order creation, idempotency, lazy expiry and cancellation.
+- `app/Services/InventoryService.php`: transactional reservation/release/sale of exact digital keys.
+- `app/Services/PaymentService.php`: payment attempts, provider confirmation, local completion and owner-only delivery.
+- `app/Payments`: Fake Card and PayPal Sandbox adapters, client and registry.
+- `app/Models`, `database/migrations`, `database/seeders`: persistence and explicit synthetic fixtures.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+This is a layered monolith, not a set of microservices. Provider HTTP happens outside DB transactions. Digital keys are encrypted and globally deduplicated through a separate HMAC fingerprint secret.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Useful commands
 
-## Learning Laravel
+Run from the repository root:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```sh
+docker compose exec -T backend php artisan migrate:status
+docker compose exec -T backend php vendor/bin/phpunit --filter TestDatabaseIsolationTest --do-not-cache-result
+docker compose exec -T backend php vendor/bin/phpunit --do-not-cache-result
+docker compose exec -T backend php vendor/bin/pint --test
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The normal PHPUnit suite requires SQLite in-memory. PostgreSQL suites require a separate disposable database; see [testing](../docs/testing.md). Do not weaken test guards to use the working DB. `composer test` also clears Laravel's config cache; direct PHPUnit commands above avoid that extra action.
 
-## Contributing
+## Configuration and boundaries
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+`APP_KEY` decrypts key material. `DIGITAL_KEY_FINGERPRINT_SECRET` must be independent, at least 32 bytes and stable. Store both privately and preserve them for existing inventory. [Schema/backfill documentation](../docs/checkout-schema.md) explains maintenance requirements.
 
-## Code of Conduct
+Fake Card requires explicit `PAYMENT_DEMO_ENABLED=true`, including when `APP_ENV=production`; it is only appropriate for synthetic demo inventory. PayPal is Sandbox-only. See [payments](../docs/payments.md) for exact flags, callbacks, idempotency and uncertain-capture recovery.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+The production image does not run migrations or generate keys on startup. Authorized Neon changes use the existing manual [production database workflow](../docs/production-database.md). No refunds, webhooks, scheduler or background reconciliation are implemented.

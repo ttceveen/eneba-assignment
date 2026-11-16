@@ -1,32 +1,31 @@
-# React + TypeScript + Vite
+# Marketplace frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React/TypeScript SPA using Vite, React Router and CSS Modules. General setup, environment configuration, payments and deployment are documented in the [root README](../README.md).
 
-Currently, two official plugins are available:
+## Responsibilities
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `src/pages/Home`, `GameDetails`, `Cart` and `Checkout`: catalog-to-key purchase flow.
+- `src/api`: existing REST transport and response validation; production API requests require HTTPS.
+- `src/auth`: Sanctum Bearer token lifecycle, with tokens in sessionStorage only.
+- `src/cart`: browser persistence, stock feedback, cross-tab synchronization and confirmed account boundaries.
+- `src/checkout`: stable attempt metadata and purchase-allocation journal.
+- `src/utils/catalogHistory.ts` and `src/hooks/useCatalogScroll.ts`: catalog context and position restoration.
 
-## React Compiler
+The backend is authoritative for prices, reservation validity, payment status and key assignment. The frontend never stores purchased keys persistently.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Commands
 
-## Expanding the Oxlint configuration
+From the repository root with Compose running:
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+docker compose exec -T frontend node --test tests/*.test.mjs
+docker compose exec -T frontend npx tsc -b --pretty false
+docker compose exec -T frontend npm run lint
+docker compose exec -T frontend npm run build -- --outDir /tmp/eneba-frontend-build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Compose already starts Vite; do not start a second dev server in the running container. For a host-based installation, use Node.js 24, run `npm ci` in this directory, configure `frontend/.env`, then `npm run dev`.
+
+`VITE_API_BASE_URL` is public build-time configuration, not a place for credentials. PayPal Client Secret, OAuth tokens and encryption secrets belong only on the backend.
+
+See [Checkout behavior](../docs/frontend-checkout.md), [cart](../docs/frontend-cart.md), [navigation](../docs/catalog-navigation.md), and [browser/native test guide](tests/README.md). Account / Order History remains a placeholder. Cover fallback is expected for games without an `img` URL.
