@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router'
-import { catalogFilterKeys, catalogPlatforms, catalogRegions, getGames, searchGames,
+import { catalogFilterKeys, catalogPlatforms, catalogRegions, catalogSortOptions, getGames, searchGames,
   type CatalogFilterKey, type GamesPage, type CatalogSort } from '../../api/games'
 import { useCatalogScroll } from '../../hooks/useCatalogScroll'
 import { rememberCatalog } from '../../utils/catalogHistory'
@@ -33,7 +33,7 @@ function CatalogPage({ page, sort, query, filterQuery, onPageChange }: { page: n
       try {
         const filters = new URLSearchParams(filterQuery)
         const result = await (query
-          ? searchGames(page, query, controller.signal, filters)
+          ? searchGames(page, query, controller.signal, filters, sort)
           : getGames(page, sort, controller.signal, filters))
         if (!controller.signal.aborted) setCatalog({ status: 'success', page: result })
       } catch {
@@ -92,7 +92,10 @@ export default function Home() {
   const location = useLocation()
   const query = searchParams.get('q')?.trim() ?? ''
   useEffect(() => { if (!query) rememberCatalog(location) }, [location, query])
-  const sort: CatalogSort = searchParams.get('sort') === 'alphabetical' ? 'alphabetical' : 'popular'
+  const rawSort = searchParams.get('sort')
+  const sort: CatalogSort = rawSort === 'alphabetical'
+    ? rawSort
+    : catalogSortOptions.find(option => option.value === rawSort)?.value ?? 'popular'
   const rawPage = searchParams.get('page') ?? '1'
   const parsedPage = Number(rawPage)
   const page = /^[1-9]\d*$/.test(rawPage) && Number.isSafeInteger(parsedPage) ? parsedPage : 1
@@ -119,6 +122,16 @@ export default function Home() {
       else next.delete(key)
       return next
     }, { state: location.state, replace: key === 'min_price' || key === 'max_price' })
+  }
+
+  function changeSort(value: string) {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      next.delete('page')
+      if (value) next.set('sort', value)
+      else next.delete('sort')
+      return next
+    }, { state: location.state })
   }
 
   function changePage(nextPage: number) {
@@ -160,6 +173,14 @@ export default function Home() {
           <input type="number" min="0" step="any" value={maximum ?? ''}
             aria-invalid={priceError ? true : undefined} aria-describedby={priceError ? 'catalog-price-error' : undefined}
             onChange={event => changeFilter('max_price', event.target.value)} />
+        </label>
+        <label className={styles.sort}>
+          Sort by
+          <select value={sort === 'popular' ? '' : sort === 'alphabetical' ? 'name_asc' : sort}
+            onChange={event => changeSort(event.target.value)}>
+            <option value="">Default</option>
+            {catalogSortOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+          </select>
         </label>
         <button type="button" onClick={() => changeFilter()} disabled={filters.size === 0}>Clear Filters</button>
       </div>

@@ -94,6 +94,31 @@ class GameSearchTest extends TestCase
         $this->assertSame([], $this->search('portal', filters: ['platform' => 'Nintendo'])['data']);
     }
 
+    public function test_explicit_price_sort_reorders_fuzzy_search_using_all_matching_filters(): void
+    {
+        $exact = $this->game('Portal');
+        $extension = $this->game('Portal Adventures');
+        $wrongRegion = Game::create(['name' => 'Portal Europe', 'location' => ['PL']]);
+        $wrongPlatform = $this->game('Portal Xbox');
+        $wrongPrice = $this->game('Portal Expensive');
+        $seller = Seller::create(['name' => 'Seller']);
+        $other = Seller::create(['name' => 'Other seller']);
+        foreach ([[$exact, 'Steam', 30], [$extension, 'Steam', 20], [$wrongRegion, 'Steam', 15],
+            [$wrongPlatform, 'Xbox', 10], [$wrongPrice, 'Steam', 60]] as [$game, $platform, $price]) {
+            $game->offers()->create(['seller_id' => $seller->id, 'platform' => $platform, 'price' => $price, 'quantity' => 1]);
+        }
+        $exact->offers()->create(['seller_id' => $other->id, 'platform' => 'Steam', 'price' => 5, 'quantity' => 1]);
+
+        $filters = ['platform' => 'Steam', 'region' => 'Global', 'min_price' => '10', 'max_price' => '50'];
+        $this->assertSame([$exact->id, $extension->id], array_column($this->search('portal', filters: $filters)['data'], 'id'));
+        $filters['sort'] = 'price_asc';
+        $result = $this->search('portl', filters: $filters);
+        $this->assertSame([$extension->id, $exact->id], array_column($result['data'], 'id'));
+        $this->assertSame(['20.00', '30.00'], array_column($result['data'], 'min_price'));
+        parse_str(parse_url($result['links']['first'], PHP_URL_QUERY), $params);
+        $this->assertSame(['q' => 'portl', ...$filters], array_diff_key($params, ['page' => true]));
+    }
+
     public function test_platform_migration_preserves_offers_and_enforces_enum_and_not_null(): void
     {
         $migration = require database_path('migrations/2026_11_18_000001_add_platform_to_offers.php');

@@ -34,7 +34,15 @@ export const catalogRegions = ['Global', 'Europe', 'North America'] as const
 export const catalogFilterKeys = ['platform', 'region', 'min_price', 'max_price'] as const
 export type CatalogFilterKey = typeof catalogFilterKeys[number]
 
-export type CatalogSort = 'popular' | 'alphabetical'
+export const catalogSortOptions = [
+  { value: 'price_asc', label: 'Price: Low to High' },
+  { value: 'price_desc', label: 'Price: High to Low' },
+  { value: 'name_asc', label: 'Name: A–Z' },
+  { value: 'name_desc', label: 'Name: Z–A' },
+  { value: 'newest', label: 'Newest' },
+] as const
+
+export type CatalogSort = 'popular' | 'alphabetical' | typeof catalogSortOptions[number]['value']
 
 export type GamesPage = {
   data: Game[]
@@ -94,7 +102,7 @@ function isGamesPage(value: unknown): value is GamesPage {
 
 export async function getGames(page: number, sort: CatalogSort, signal: AbortSignal, filters?: URLSearchParams): Promise<GamesPage> {
   const query = new URLSearchParams(filters)
-  if (sort === 'alphabetical') query.set('sort', sort)
+  if (sort !== 'popular') query.set('sort', sort)
   query.set('page', String(page))
   const response = await getResponse(`/games?${query}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -118,9 +126,10 @@ export async function getGame(id: string, signal: AbortSignal): Promise<Game | n
 
 export type SearchPreview = { data: Game[]; suggestions: string[] }
 
-export async function searchGames(page: number, query: string, signal: AbortSignal, filters?: URLSearchParams): Promise<GamesPage> {
+export async function searchGames(page: number, query: string, signal: AbortSignal, filters?: URLSearchParams, sort: CatalogSort = 'popular'): Promise<GamesPage> {
   const params = new URLSearchParams(filters)
   params.set('q', query)
+  if (sort !== 'popular') params.set('sort', sort)
   params.set('page', String(page))
   const response = await getResponse(`/games/search?${params}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)

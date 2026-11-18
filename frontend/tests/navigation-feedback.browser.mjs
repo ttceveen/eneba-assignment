@@ -28,6 +28,7 @@ async function setup(t, options = {}) {
       if (state.catalogHold) await state.catalogHold
       if (state.catalogError) return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
       const data = Array.from({ length: 12 }, (_, i) => game(i + 1))
+      if (url.searchParams.get('sort') === 'price_desc') data.reverse()
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(url.searchParams.has('preview') ? { data: data.slice(0, 2), suggestions: ['Game'] } : { data, meta: { current_page: Number(url.searchParams.get('page') ?? 1), last_page: 3, per_page: 12, total: 36 }, links: { first: '', last: '', prev: '', next: '' } }) })
     } else if (/^\/api\/games\/\d+$/.test(path)) {
       data = game(Number(path.split('/').at(-1)))
@@ -64,6 +65,41 @@ for (const query of ['?sort=alphabetical&page=2', '?q=Game&page=2', '?q=Game&sor
   await card(page, 7).waitFor()
   const after = await page.locator('[data-game-id="7"]').evaluate(e => e.getBoundingClientRect().top)
   assert.ok(Math.abs(after - before) < 4, 'return also restores catalog position')
+})
+
+for (const searching of [false, true]) test(`changing catalog sort retains filters and query (search=${searching})`, async t => {
+  const { page, calls } = await setup(t)
+  const filters = { platform: 'Steam', region: 'Global', min_price: '10', max_price: '50' }
+  const query = searching ? { q: 'Game' } : {}
+  const path = searching ? '/api/games/search' : '/api/games'
+  await page.goto(base + '/?' + new URLSearchParams({ ...filters, ...query, page: '2' }))
+  await card(page).waitFor()
+
+  const sort = page.getByRole('combobox', { name: 'Sort by' })
+  assert.deepEqual(await sort.locator('option').allTextContents(), [
+    'Default', 'Price: Low to High', 'Price: High to Low', 'Name: A–Z', 'Name: Z–A', 'Newest',
+  ])
+  await sort.selectOption({ label: 'Price: High to Low' })
+  await page.locator('[data-game-id]').first().filter({ has: card(page, 12) }).waitFor()
+  assert.equal(await page.locator('[data-game-id]').first().getAttribute('data-game-id'), '12')
+  assert.equal(await sort.inputValue(), 'price_desc')
+  assert.equal(await sort.locator('option:checked').textContent(), 'Price: High to Low')
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(matching(calls, path).at(-1).query)), {
+    ...filters, ...query, sort: 'price_desc', page: '1',
+  })
+  assert.equal(new URL(page.url()).searchParams.has('page'), false)
+
+  const cleared = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.pathname === path && !url.searchParams.has('platform') && response.ok()
+  })
+  await page.getByRole('button', { name: 'Clear Filters' }).click()
+  await cleared
+  await card(page).waitFor()
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(matching(calls, path).at(-1).query)), {
+    ...query, sort: 'price_desc', page: '1',
+  })
+  assert.equal(await sort.inputValue(), 'price_desc')
 })
 
 test('direct game entry ignores an unrelated stored catalog', async t => {

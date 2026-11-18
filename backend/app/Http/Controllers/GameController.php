@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CatalogFilters;
+use App\Http\Requests\CatalogSort;
 use App\Http\Resources\GameResource;
 use App\Models\Game;
 use Illuminate\Http\Request;
@@ -18,17 +19,17 @@ class GameController extends Controller
         $filterRules = CatalogFilters::rules($request->has('min_price'));
         $validated = $request->validate([
             ...$filterRules,
+            'sort' => CatalogSort::rules(),
             'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.$maxPage],
         ]);
         $filters = array_intersect_key($validated, $filterRules);
+        $sort = $validated['sort'] ?? null;
 
         $query = Game::query()->select(['games.id', 'games.name', 'games.location', 'games.img'])
             ->where('games.is_active', true);
         CatalogFilters::apply($query, $filters);
-        $alphabetical = $request->query('sort') === 'alphabetical';
-
-        if ($alphabetical) {
-            $query->orderByRaw('LOWER(games.name) ASC')->orderBy('games.id');
+        if ($sort !== null && $sort !== 'popular') {
+            CatalogSort::apply($query, $sort);
         } else {
             $query->join('game_popularities', 'game_popularities.game_id', '=', 'games.id')
                 ->orderByDesc('game_popularities.purchase_count')
@@ -37,8 +38,8 @@ class GameController extends Controller
 
         $games = $query->paginate($perPage, ['games.id', 'games.name', 'games.location', 'games.img'], 'page', (int) ($validated['page'] ?? 1));
         $games->appends($filters);
-        if ($alphabetical) {
-            $games->appends(['sort' => 'alphabetical']);
+        if ($sort !== null) {
+            $games->appends(['sort' => $sort]);
         }
 
         return GameResource::collection($games);

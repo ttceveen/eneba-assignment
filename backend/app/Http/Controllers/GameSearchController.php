@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CatalogFilters;
+use App\Http\Requests\CatalogSort;
 use App\Http\Resources\GameResource;
 use App\Models\Game;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,17 +22,23 @@ class GameSearchController extends Controller
         $filterRules = CatalogFilters::rules($request->has('min_price'));
         $validated = $request->validate([
             ...$filterRules,
+            'sort' => CatalogSort::rules(),
             'q' => ['required', 'string', 'max:255'],
             'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.(intdiv(PHP_INT_MAX, 12) + 1)],
             'preview' => ['sometimes', 'boolean'],
         ]);
         $filters = array_intersect_key($validated, $filterRules);
+        $sort = $validated['sort'] ?? null;
 
         abort_unless(DB::connection()->getDriverName() === 'pgsql', 503, 'Search requires PostgreSQL and pg_trgm.');
         abort_unless(DB::selectOne("SELECT to_regprocedure('word_similarity(text,text)') IS NOT NULL AS available")->available,
             503, 'Search requires the pg_trgm migration.');
 
         $query = CatalogFilters::apply($this->rankedGames($validated['q']), $filters);
+        if ($sort !== null && $sort !== 'popular') {
+            CatalogSort::apply($query, $sort);
+        }
+
         if ($request->boolean('preview')) {
             $games = $query->limit(6)->get(['games.id', 'games.name', 'games.location', 'games.img']);
 
@@ -42,6 +49,9 @@ class GameSearchController extends Controller
 
         $games = $query->paginate(12, ['games.id', 'games.name', 'games.location', 'games.img'], 'page', (int) ($validated['page'] ?? 1));
         $games->appends(['q' => $validated['q'], ...$filters]);
+        if ($sort !== null) {
+            $games->appends(['sort' => $sort]);
+        }
 
         return GameResource::collection($games);
     }
