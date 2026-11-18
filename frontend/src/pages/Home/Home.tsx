@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router'
-import { getGames, searchGames, type GamesPage, type CatalogSort } from '../../api/games'
+import { catalogFilterKeys, catalogPlatforms, catalogRegions, getGames, searchGames,
+  type CatalogFilterKey, type GamesPage, type CatalogSort } from '../../api/games'
 import { useCatalogScroll } from '../../hooks/useCatalogScroll'
 import { rememberCatalog } from '../../utils/catalogHistory'
 import GameCard from '../../components/GameCard/GameCard'
@@ -11,7 +12,7 @@ type CatalogState =
   | { status: 'success'; page: GamesPage }
   | { status: 'error' }
 
-function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: CatalogSort; query: string; onPageChange: (page: number) => void }) {
+function CatalogPage({ page, sort, query, filterQuery, onPageChange }: { page: number; sort: CatalogSort; query: string; filterQuery: string; onPageChange: (page: number) => void }) {
   const [catalog, setCatalog] = useState<CatalogState>({ status: 'loading' })
   const [retry, setRetry] = useState(0)
   const loaded = catalog.status === 'success'
@@ -30,7 +31,10 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
       await Promise.resolve()
       if (controller.signal.aborted) return
       try {
-        const result = await (query ? searchGames(page, query, controller.signal) : getGames(page, sort, controller.signal))
+        const filters = new URLSearchParams(filterQuery)
+        const result = await (query
+          ? searchGames(page, query, controller.signal, filters)
+          : getGames(page, sort, controller.signal, filters))
         if (!controller.signal.aborted) setCatalog({ status: 'success', page: result })
       } catch {
         if (!controller.signal.aborted) setCatalog({ status: 'error' })
@@ -38,13 +42,12 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
     })()
 
     return () => controller.abort()
-  }, [page, sort, query, retry])
+  }, [page, sort, query, filterQuery, retry])
 
   return (
-    <main className={styles.main} id="games" ref={mainRef}
+    <section className={styles.results} ref={mainRef} aria-label="Catalog results"
       aria-busy={catalog.status === 'loading' || (loaded && restoring)}
       style={{ minHeight: restoring ? mainHeight : undefined }}>
-      <h1 className={styles.heading}>{query ? `Search results for “${query}”` : 'Games'}</h1>
       {catalog.status === 'loading' && <p role="status" className={restoring ? styles.restoringStatus : undefined}>Loading games...</p>}
       <div style={{ visibility: restoring && loaded ? 'hidden' : undefined }}>
         {catalog.status === 'error' && <p role="alert">Failed to load games.<button className={styles.retry} type="button" onClick={event => {
@@ -54,7 +57,10 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
         }}>Retry</button></p>}
         {catalog.status === 'success' && (
           <>
-            {catalog.page.data.length === 0 ? <p role="status">{query ? 'No games found.' : 'No games available.'}</p> : (
+            <div className={styles.resultCount} role="status">
+              {catalog.page.meta.total} {catalog.page.meta.total === 1 ? 'game' : 'games'} found
+            </div>
+            {catalog.page.data.length === 0 ? <p role="status">{query || filterQuery ? 'No games found.' : 'No games available.'}</p> : (
               <div className={styles.grid}>
                 {catalog.page.data.map((game) => (
                   <GameCard key={game.id} id={game.id} name={game.name} location={game.location} img={game.img} price={game.min_price} offersCount={game.offers_count} />
@@ -77,7 +83,7 @@ function CatalogPage({ page, sort, query, onPageChange }: { page: number; sort: 
           </>
         )}
       </div>
-    </main>
+    </section>
   )
 }
 
@@ -91,6 +97,30 @@ export default function Home() {
   const parsedPage = Number(rawPage)
   const page = /^[1-9]\d*$/.test(rawPage) && Number.isSafeInteger(parsedPage) ? parsedPage : 1
 
+  const filters = new URLSearchParams()
+  for (const key of catalogFilterKeys) {
+    const value = searchParams.get(key)
+    if (value) filters.set(key, value)
+  }
+  const minimum = filters.get('min_price')
+  const maximum = filters.get('max_price')
+  const priceError = [minimum, maximum].some(value => value !== null && (!Number.isFinite(Number(value)) || Number(value) < 0))
+    ? 'Enter non-negative prices.'
+    : minimum !== null && maximum !== null && Number(minimum) > Number(maximum)
+      ? 'Min Price must be less than or equal to Max Price.'
+      : null
+
+  function changeFilter(key?: CatalogFilterKey, value?: string) {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      next.delete('page')
+      if (!key) catalogFilterKeys.forEach(filter => next.delete(filter))
+      else if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, { state: location.state, replace: key === 'min_price' || key === 'max_price' })
+  }
+
   function changePage(nextPage: number) {
     if (nextPage === page || nextPage < 1) return
     setSearchParams((current) => {
@@ -101,5 +131,42 @@ export default function Home() {
     }, { state: location.state })
   }
 
-  return <CatalogPage key={`${location.key}:${sort}:${page}:${query}`} page={page} sort={sort} query={query} onPageChange={changePage} />
+  return (
+    <main className={styles.main} id="games">
+      <h1 className={styles.heading}>{query ? `Search results for “${query}”` : 'Games'}</h1>
+      <div className={styles.filters} role="group" aria-label="Catalog filters">
+        <label>
+          Platform
+          <select value={filters.get('platform') ?? ''} onChange={event => changeFilter('platform', event.target.value)}>
+            <option value="">All Platforms</option>
+            {catalogPlatforms.map(platform => <option key={platform}>{platform}</option>)}
+          </select>
+        </label>
+        <label>
+          Region
+          <select value={filters.get('region') ?? ''} onChange={event => changeFilter('region', event.target.value)}>
+            <option value="">All Regions</option>
+            {catalogRegions.map(region => <option key={region}>{region}</option>)}
+          </select>
+        </label>
+        <label>
+          Min Price (€)
+          <input type="number" min="0" step="any" value={minimum ?? ''}
+            aria-invalid={priceError ? true : undefined} aria-describedby={priceError ? 'catalog-price-error' : undefined}
+            onChange={event => changeFilter('min_price', event.target.value)} />
+        </label>
+        <label>
+          Max Price (€)
+          <input type="number" min="0" step="any" value={maximum ?? ''}
+            aria-invalid={priceError ? true : undefined} aria-describedby={priceError ? 'catalog-price-error' : undefined}
+            onChange={event => changeFilter('max_price', event.target.value)} />
+        </label>
+        <button type="button" onClick={() => changeFilter()} disabled={filters.size === 0}>Clear Filters</button>
+      </div>
+      {priceError ? <p id="catalog-price-error" role="alert">{priceError}</p> : (
+        <CatalogPage key={location.key} page={page} sort={sort} query={query}
+          filterQuery={filters.toString()} onPageChange={changePage} />
+      )}
+    </main>
+  )
 }

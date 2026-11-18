@@ -63,7 +63,7 @@ class CheckoutSchemaTest extends TestCase
     private function fixtures(): array
     {
         $user = User::factory()->create();
-        $offer = Offer::create(['seller_id' => Seller::create(['name' => 'Fixture'])->id,
+        $offer = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Fixture'])->id,
             'game_id' => Game::create(['name' => 'Fixture', 'location' => ['GLOBAL']])->id,
             'price' => '12.50', 'quantity' => 4]);
         $order = Order::create(['user_id' => $user->id, 'status' => 'pending_payment',
@@ -278,7 +278,7 @@ class CheckoutSchemaTest extends TestCase
         $key->update(['status' => 'reserved', 'order_item_id' => $item->id, 'reserved_until' => $order->reserved_until]);
         $key->update(['status' => 'sold', 'reserved_until' => null]);
         $this->assertSame('sold', $key->fresh()->status);
-        $otherOffer = Offer::create(['seller_id' => $offer->seller_id,
+        $otherOffer = Offer::create(['platform' => 'Steam', 'seller_id' => $offer->seller_id,
             'game_id' => Game::create(['name' => 'Other', 'location' => ['GLOBAL']])->id, 'price' => '1.00', 'quantity' => 0]);
         $otherItem = $order->items()->create(['offer_id' => $otherOffer->id, 'quantity' => 1, 'unit_price' => '1.00']);
         $this->rejected(fn () => DB::table('digital_keys')->where('id', $key->id)->update(['order_item_id' => $otherItem->id]), '23503');
@@ -360,7 +360,7 @@ class CheckoutSchemaTest extends TestCase
         $checkout = require database_path('migrations/2026_11_13_000001_create_checkout_tables.php');
         $keys->down();
         $checkout->down();
-        $offer = Offer::create(['seller_id' => Seller::create(['name' => 'Legacy'])->id,
+        $offer = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Legacy'])->id,
             'game_id' => Game::create(['name' => 'Legacy', 'location' => ['GLOBAL']])->id, 'price' => '3.00', 'quantity' => 1]);
         $id = DB::table('digital_keys')->insertGetId(['offer_id' => $offer->id, 'key_value' => Crypt::encryptString('preservation-fixture'), 'created_at' => now(), 'updated_at' => now()]);
         $before = (array) DB::table('digital_keys')->where('id', $id)->first();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CatalogFilters;
 use App\Http\Resources\GameResource;
 use App\Models\Game;
 use Illuminate\Http\Request;
@@ -14,12 +15,16 @@ class GameController extends Controller
         $perPage = 12;
         // (page - 1) * perPage must remain an integer within PHP_INT_MAX.
         $maxPage = intdiv(PHP_INT_MAX, $perPage) + 1;
+        $filterRules = CatalogFilters::rules($request->has('min_price'));
         $validated = $request->validate([
+            ...$filterRules,
             'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.$maxPage],
         ]);
+        $filters = array_intersect_key($validated, $filterRules);
 
         $query = Game::query()->select(['games.id', 'games.name', 'games.location', 'games.img'])
-            ->where('games.is_active', true)->withOfferSummary();
+            ->where('games.is_active', true);
+        CatalogFilters::apply($query, $filters);
         $alphabetical = $request->query('sort') === 'alphabetical';
 
         if ($alphabetical) {
@@ -31,6 +36,7 @@ class GameController extends Controller
         }
 
         $games = $query->paginate($perPage, ['games.id', 'games.name', 'games.location', 'games.img'], 'page', (int) ($validated['page'] ?? 1));
+        $games->appends($filters);
         if ($alphabetical) {
             $games->appends(['sort' => 'alphabetical']);
         }

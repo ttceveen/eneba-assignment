@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CatalogFilters;
 use App\Http\Resources\GameResource;
 use App\Models\Game;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,17 +18,20 @@ class GameSearchController extends Controller
         if (is_string($input)) {
             $request->merge(['q' => preg_replace('/^\s+|\s+$/u', '', $input)]);
         }
+        $filterRules = CatalogFilters::rules($request->has('min_price'));
         $validated = $request->validate([
+            ...$filterRules,
             'q' => ['required', 'string', 'max:255'],
             'page' => ['sometimes', 'required', 'integer', 'min:1', 'max:'.(intdiv(PHP_INT_MAX, 12) + 1)],
             'preview' => ['sometimes', 'boolean'],
         ]);
+        $filters = array_intersect_key($validated, $filterRules);
 
         abort_unless(DB::connection()->getDriverName() === 'pgsql', 503, 'Search requires PostgreSQL and pg_trgm.');
         abort_unless(DB::selectOne("SELECT to_regprocedure('word_similarity(text,text)') IS NOT NULL AS available")->available,
             503, 'Search requires the pg_trgm migration.');
 
-        $query = $this->rankedGames($validated['q']);
+        $query = CatalogFilters::apply($this->rankedGames($validated['q']), $filters);
         if ($request->boolean('preview')) {
             $games = $query->limit(6)->get(['games.id', 'games.name', 'games.location', 'games.img']);
 
@@ -37,7 +41,7 @@ class GameSearchController extends Controller
         }
 
         $games = $query->paginate(12, ['games.id', 'games.name', 'games.location', 'games.img'], 'page', (int) ($validated['page'] ?? 1));
-        $games->appends(['q' => $validated['q']]);
+        $games->appends(['q' => $validated['q'], ...$filters]);
 
         return GameResource::collection($games);
     }
@@ -50,7 +54,7 @@ class GameSearchController extends Controller
         $contains = '%'.$literal.'%';
 
         return Game::query()->select(['games.id', 'games.name', 'games.location', 'games.img'])
-            ->where('games.is_active', true)->withOfferSummary()
+            ->where('games.is_active', true)
             ->whereRaw("(games.name ILIKE ? ESCAPE '!' OR word_similarity(LOWER(?), LOWER(games.name)) >= ?)", [$contains, $query, 0.45])
             ->orderByRaw("CASE WHEN LOWER(games.name) = LOWER(?) THEN 0 WHEN games.name ILIKE ? ESCAPE '!' THEN 1 WHEN games.name ILIKE ? ESCAPE '!' THEN 2 ELSE 3 END", [$query, $prefix, $contains])
             ->orderByRaw('word_similarity(LOWER(?), LOWER(games.name)) DESC', [$query])

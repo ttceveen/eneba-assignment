@@ -17,6 +17,7 @@ class OfferIndexTest extends TestCase
     private function offer(): Offer
     {
         return Offer::create([
+            'platform' => 'Steam',
             'game_id' => Game::create(['name' => 'Game', 'location' => ['GLOBAL']])->id,
             'seller_id' => Seller::create(['name' => 'Seller'])->id,
             'price' => '12.34', 'quantity' => 2,

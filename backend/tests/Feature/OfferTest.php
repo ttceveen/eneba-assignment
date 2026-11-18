@@ -18,6 +18,7 @@ class OfferTest extends TestCase
     private function offer(array $attributes = []): Offer
     {
         return Offer::create(array_replace([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Seller fixture'])->id,
             'game_id' => Game::create(['name' => 'Game fixture', 'location' => ['GLOBAL']])->id,
             'price' => '19.90', 'quantity' => 3,
@@ -43,6 +44,7 @@ class OfferTest extends TestCase
     {
         $first = $this->offer();
         $second = Offer::create([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Another seller'])->id,
             'game_id' => $first->game_id, 'price' => '20.00', 'quantity' => 1,
         ]);
@@ -54,7 +56,7 @@ class OfferTest extends TestCase
     {
         $offer = $this->offer();
         $this->expectException(QueryException::class);
-        Offer::create(['seller_id' => $offer->seller_id, 'game_id' => $offer->game_id, 'price' => '1.00', 'quantity' => 1]);
+        Offer::create(['platform' => 'Steam', 'seller_id' => $offer->seller_id, 'game_id' => $offer->game_id, 'price' => '1.00', 'quantity' => 1]);
     }
 
     public function test_database_active_default_and_zero_values(): void
@@ -62,6 +64,7 @@ class OfferTest extends TestCase
         $offer = $this->offer(['price' => '0', 'quantity' => 0]);
         $this->assertSame('0.00', $offer->fresh()->price);
         $id = DB::table('offers')->insertGetId([
+            'platform' => 'Steam',
             'seller_id' => $offer->seller_id,
             'game_id' => Game::create(['name' => 'Second game', 'location' => ['GLOBAL']])->id,
             'price' => '2.50', 'quantity' => 0, 'created_at' => now(), 'updated_at' => now(),

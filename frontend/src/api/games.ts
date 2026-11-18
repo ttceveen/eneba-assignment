@@ -29,6 +29,11 @@ export async function getResponse(path: string, signal: AbortSignal, options: Re
   return fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, { ...options, credentials: 'omit', headers, signal })
 }
 
+export const catalogPlatforms = ['Steam', 'Xbox', 'PlayStation', 'Nintendo'] as const
+export const catalogRegions = ['Global', 'Europe', 'North America'] as const
+export const catalogFilterKeys = ['platform', 'region', 'min_price', 'max_price'] as const
+export type CatalogFilterKey = typeof catalogFilterKeys[number]
+
 export type CatalogSort = 'popular' | 'alphabetical'
 
 export type GamesPage = {
@@ -87,8 +92,8 @@ function isGamesPage(value: unknown): value is GamesPage {
     && isNullableString(value.links.prev) && isNullableString(value.links.next)
 }
 
-export async function getGames(page: number, sort: CatalogSort, signal: AbortSignal): Promise<GamesPage> {
-  const query = new URLSearchParams()
+export async function getGames(page: number, sort: CatalogSort, signal: AbortSignal, filters?: URLSearchParams): Promise<GamesPage> {
+  const query = new URLSearchParams(filters)
   if (sort === 'alphabetical') query.set('sort', sort)
   query.set('page', String(page))
   const response = await getResponse(`/games?${query}`, signal)
@@ -113,8 +118,10 @@ export async function getGame(id: string, signal: AbortSignal): Promise<Game | n
 
 export type SearchPreview = { data: Game[]; suggestions: string[] }
 
-export async function searchGames(page: number, query: string, signal: AbortSignal): Promise<GamesPage> {
-  const params = new URLSearchParams({ q: query, page: String(page) })
+export async function searchGames(page: number, query: string, signal: AbortSignal, filters?: URLSearchParams): Promise<GamesPage> {
+  const params = new URLSearchParams(filters)
+  params.set('q', query)
+  params.set('page', String(page))
   const response = await getResponse(`/games/search?${params}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const payload: unknown = await response.json()

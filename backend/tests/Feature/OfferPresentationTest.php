@@ -17,6 +17,7 @@ class OfferPresentationTest extends TestCase
     private function offer(Game $game, string $price, bool $sellerActive = true, bool $active = true, int $quantity = 5): Offer
     {
         return Offer::create([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Seller '.$price, 'is_active' => $sellerActive])->id,
             'game_id' => $game->id, 'price' => $price, 'quantity' => $quantity, 'is_active' => $active,
         ]);
