@@ -52,6 +52,7 @@ class GameCatalogFiltersTest extends TestCase
     {
         foreach (['/api/games?', '/api/games/search?q=portal&'] as $endpoint) {
             foreach ([
+                'popular_only=maybe' => 'popular_only',
                 'platform=Switch' => 'platform',
                 'platform[]=Steam' => 'platform',
                 'region=Asia' => 'region',
@@ -64,6 +65,46 @@ class GameCatalogFiltersTest extends TestCase
                 $this->getJson($endpoint.$query)->assertUnprocessable()->assertJsonValidationErrors($field);
             }
         }
+    }
+
+    public function test_popular_only_filters_positive_counters_independently_of_sort_and_offers(): void
+    {
+        $popular = $this->game('Zeta', ['GLOBAL']);
+        $withoutOffer = $this->game('Alpha', ['GLOBAL']);
+        $zero = $this->game('Zero', ['GLOBAL']);
+        $missing = $this->game('Missing', ['GLOBAL']);
+        $europe = $this->game('Europe', ['PL']);
+        $missing->popularity()->delete();
+        $popular->popularity()->update(['purchase_count' => 8]);
+        $withoutOffer->popularity()->update(['purchase_count' => 3]);
+        $europe->popularity()->update(['purchase_count' => 1]);
+        foreach ([$popular, $zero, $missing, $europe] as $game) {
+            $this->offer($game, 'Steam', 20);
+        }
+
+        $this->getJson('/api/games?popular_only=0')->assertOk()->assertJsonPath('meta.total', 5);
+        $result = $this->getJson('/api/games?popular_only=1&sort=name_asc')->assertOk();
+        $this->assertSame([$withoutOffer->id, $europe->id, $popular->id], array_column($result->json('data'), 'id'));
+        $this->getJson('/api/games?popular_only=1&platform=Steam&region=Global&min_price=20&max_price=20&sort=price_desc')
+            ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $popular->id);
+    }
+
+    public function test_catalog_can_filter_a_bounded_list_of_requested_ids(): void
+    {
+        $steam = $this->game('Steam game', ['GLOBAL']);
+        $xbox = $this->game('Xbox game', ['GLOBAL']);
+        $other = $this->game('Unrequested game', ['GLOBAL']);
+        $hidden = $this->game('Hidden game', ['GLOBAL']);
+        $hidden->update(['is_active' => false]);
+        $this->offer($steam, 'Steam', 20);
+        $this->offer($xbox, 'Xbox', 20);
+        $this->offer($other, 'Steam', 20);
+        $this->offer($hidden, 'Steam', 20);
+        $params = http_build_query(['ids' => [$steam->id, $xbox->id, $hidden->id, 999], 'platform' => 'Steam', 'max_price' => 20]);
+
+        $this->getJson('/api/games?'.$params)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $steam->id);
+        $this->getJson('/api/games?'.http_build_query(['ids' => range(1, 13)]))->assertUnprocessable()->assertJsonValidationErrors('ids');
+        $this->getJson('/api/games?ids[]=0')->assertUnprocessable()->assertJsonValidationErrors('ids.0');
     }
 
     private function game(string $name, array $location): Game

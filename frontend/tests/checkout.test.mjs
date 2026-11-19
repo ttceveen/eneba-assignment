@@ -138,21 +138,21 @@ test('PayPal confirmation has a bounded timeout and keeps the caller cancellatio
 })
 
 for (const [context, expected] of [
-  ['create-order', 'Unable to create your order.'],
-  ['start-payment', 'Unable to start payment.'],
-  ['confirm', 'The payment confirmation result is unknown.'],
-  ['load-order', 'Unable to load your order.'],
-  ['load-keys', 'Your payment is confirmed, but your digital keys could not be loaded.'],
+  ['create-order', 'Nepavyko sukurti užsakymo.'],
+  ['start-payment', 'Nepavyko pradėti mokėjimo.'],
+  ['confirm', 'Mokėjimo patvirtinimo rezultatas nežinomas.'],
+  ['load-order', 'Nepavyko įkelti užsakymo.'],
+  ['load-keys', 'Mokėjimas patvirtintas, tačiau nepavyko įkelti skaitmeninių raktų.'],
 ]) test(`safe contextual message for ${context}`, () => {
   const message = api.checkoutMessage(new Error('private-provider-secret'), context)
   assert.ok(message.startsWith(expected))
   assert.ok(!message.includes('private-provider-secret'))
-  assert.ok(!message.includes('payment failed'))
+  assert.ok(!message.includes('mokėjimas nepavyko'))
 })
 
 test('contextual checkout errors retain actionable HTTP details without claiming failed payment', () => {
   const message = api.checkoutMessage(new api.CheckoutError(409), 'create-order')
-  assert.ok(message.includes('Unable to create your order.'))
-  assert.ok(message.includes('Stock or reservation changed.'))
-  assert.ok(api.checkoutMessage(new api.CheckoutError(502), 'confirm').includes('result is unknown'))
+  assert.ok(message.includes('Nepavyko sukurti užsakymo.'))
+  assert.ok(message.includes('Pasikeitė likutis arba rezervacija.'))
+  assert.ok(api.checkoutMessage(new api.CheckoutError(502), 'confirm').includes('rezultatas nežinomas'))
 })

@@ -1,6 +1,41 @@
+@font-face {
+  font-family: "metropolis";
+  src: url("/fonts/Metropolis-Regular.woff2") format("woff2"),
+    url("https://static.eneba.games/fonts/Metropolis-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --store-width: 1440px;
+  --store-gutter: clamp(16px, 4vw, 64px);
+  --eneba-background: #4618ac;
+  --eneba-dark-overlay: rgba(0, 0, 0, 0.7);
+  --store-bg: var(--eneba-background);
+  --store-header: #4d2990;
+  --store-nav: #271743;
+  --store-panel: #392265;
+  --store-card: #201333;
+  --store-border: #6c5292;
+  --store-text: #fffafd;
+  --store-muted: #d1c2e5;
+  --store-mint: #87ebca;
+  --store-yellow: #f9dd72;
+  --store-font: "metropolis", Arial, Helvetica, sans-serif;
+}
+
 * { box-sizing: border-box; }
-html { min-width: 280px; scroll-behavior: smooth; }
-body { margin: 0; background: #4618ac; color: #fff; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+html { min-width: 280px; font-size: 62.5%; scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font: 1.6rem / 1.5 "metropolis", Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--eneba-background);
+  color: #fff;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
 button, input { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

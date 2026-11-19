@@ -66,6 +66,6 @@ class GameAlphabeticalTest extends TestCase
 
         $this->getJson('/api/games?sort=alphabetical')->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $game->id);
-        $this->getJson('/api/games')->assertOk()->assertJsonPath('data', []);
+        $this->getJson('/api/games')->assertOk()->assertJsonPath('data.0.id', $game->id);
     }
 }

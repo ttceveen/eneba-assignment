@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType } from 'react-router'
 import { getSearchPreview, type SearchPreview } from '../../api/games'
 import { catalogReturn } from '../../utils/catalogHistory'
@@ -7,6 +7,10 @@ import styles from './SearchPanel.module.css'
 
 type PreviewState = { query: string; status: 'loading' | 'error' }
   | { query: string; status: 'success'; result: SearchPreview }
+
+const mobileQuery = '(max-width: 600px)'
+
+const searchIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
 
 function readDraft(key: string, url: string): { open: boolean; query: string } | null {
   try {
@@ -29,6 +33,7 @@ export default function SearchPanel() {
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const trigger = useRef<HTMLInputElement>(null)
+  const mobileTrigger = useRef<HTMLButtonElement>(null)
   const normalized = query.trim()
   const validQuery = normalized.length > 0 && normalized.length <= 255
   const current = preview?.query === normalized ? preview : null
@@ -44,8 +49,18 @@ export default function SearchPanel() {
   function close() {
     store(false)
     setOpen(false)
-    trigger.current?.focus({ preventScroll: true })
+    if (window.matchMedia(mobileQuery).matches) {
+      dialog.current?.close()
+      mobileTrigger.current?.focus({ preventScroll: true })
+    } else {
+      trigger.current?.focus({ preventScroll: true })
+    }
   }
+  const closeOnMobileEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || !window.matchMedia(mobileQuery).matches) return
+    event.preventDefault()
+    close()
+  })
   function submit(text: string) {
     const value = text.trim()
     if (!value || value.length > 255) return
@@ -67,15 +82,26 @@ export default function SearchPanel() {
   }
 
   useLayoutEffect(() => {
-    if (!open) return
     const element = dialog.current
-    const previousOverflow = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-    element?.showModal()
-    input.current?.focus({ preventScroll: true })
-    return () => {
+    if (!open || !element) return
+    const media = window.matchMedia(mobileQuery)
+    const root = document.documentElement
+    const previousOverflow = root.style.overflow
+    function showPanel() {
       element?.close()
-      document.documentElement.style.overflow = previousOverflow
+      root.style.overflow = media.matches ? previousOverflow : 'hidden'
+      if (media.matches) element?.show()
+      else element?.showModal()
+      input.current?.focus({ preventScroll: true })
+    }
+    showPanel()
+    media.addEventListener('change', showPanel)
+    document.addEventListener('keydown', closeOnMobileEscape)
+    return () => {
+      media.removeEventListener('change', showPanel)
+      document.removeEventListener('keydown', closeOnMobileEscape)
+      element.close()
+      root.style.overflow = previousOverflow
     }
   }, [open])
 
@@ -92,11 +118,14 @@ export default function SearchPanel() {
 
   return (
     <>
+      <button ref={mobileTrigger} type="button" className={styles.mobileTrigger} aria-label="Ieškoti žaidimų"
+        aria-haspopup="dialog" aria-expanded={open} aria-controls="header-search-panel"
+        onClick={open ? close : openPanel}>{searchIcon}</button>
       <div className={styles.trigger}>
         <div className={styles.triggerField}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
-          <input ref={trigger} type="search" aria-label="Search games" aria-haspopup="dialog"
-            placeholder="Search for games" value={confirmed}
+          {searchIcon}
+          <input ref={trigger} type="search" aria-label="Ieškoti žaidimų" aria-haspopup="dialog"
+            placeholder="Ieškoti žaidimų" value={confirmed}
             onFocus={(event) => {
               // Closing a modal returns focus here; it must not reopen the panel.
               if (event.relatedTarget instanceof Element && event.relatedTarget.closest('dialog')) return
@@ -110,9 +139,9 @@ export default function SearchPanel() {
               setOpen(true)
             }} />
         </div>
-        {confirmed && <button type="button" className={styles.clearConfirmed} onClick={clearSearch} aria-label="Clear search">×</button>}
+        {confirmed && <button type="button" className={styles.clearConfirmed} onClick={clearSearch} aria-label="Išvalyti paiešką">×</button>}
       </div>
-      <dialog ref={dialog} className={styles.panel} aria-labelledby="search-title"
+      <dialog id="header-search-panel" ref={dialog} className={styles.panel} aria-labelledby="search-title"
         onKeyDown={(event) => {
           if (event.key === 'Escape') { event.preventDefault(); close() }
         }}
@@ -120,41 +149,41 @@ export default function SearchPanel() {
         onClick={(event) => { if (event.target === event.currentTarget) close() }}>
         <div className={styles.content}>
           <form className={styles.form} onSubmit={(event) => { event.preventDefault(); submit(query) }}>
-            <button type="button" className={styles.back} onClick={close} aria-label="Close search">←</button>
-            <label id="search-title" className={styles.visuallyHidden} htmlFor="search-query">Search games</label>
+            <button type="button" className={styles.back} onClick={close} aria-label="Uždaryti paiešką">←</button>
+            <label id="search-title" className={styles.visuallyHidden} htmlFor="search-query">Ieškoti žaidimų</label>
             <input ref={input} id="search-query" type="search" autoComplete="off" maxLength={255}
-              placeholder="Search for games" value={query}
+              placeholder="Ieškoti žaidimų" value={query}
               onChange={(event) => {
                 const value = event.target.value
                 setQuery(value); store(true, value)
                 setPreview(value.trim() ? { query: value.trim(), status: 'loading' } : null)
               }} />
-            {query && <button type="button" className={styles.clear} aria-label="Clear search text" onClick={() => {
+            {query && <button type="button" className={styles.clear} aria-label="Išvalyti paieškos tekstą" onClick={() => {
               if (confirmed && normalized === confirmed) { clearSearch(); return }
               setQuery(''); store(true, ''); setPreview(null); input.current?.focus({ preventScroll: true })
             }}>×</button>}
-            <button type="submit" className={styles.submit} disabled={!validQuery}>Search</button>
+            <button type="submit" className={styles.submit} disabled={!validQuery}>Paieška</button>
           </form>
           <div className={styles.results} aria-live="polite" aria-busy={Boolean(validQuery && (!current || current.status === 'loading'))}>
-            {!normalized && <p className={styles.status}>Start typing a game title.</p>}
-            {normalized.length > 255 && <p role="alert" className={styles.status}>Search query must be 255 characters or fewer.</p>}
-            {validQuery && (!current || current.status === 'loading') && <p className={styles.status}>Searching games...</p>}
-            {current?.status === 'error' && <p role="alert" className={styles.status}>Failed to search games.</p>}
+            {!normalized && <p className={styles.status}>Pradėkite rašyti žaidimo pavadinimą.</p>}
+            {normalized.length > 255 && <p role="alert" className={styles.status}>Paieškos užklausa negali viršyti 255 simbolių.</p>}
+            {validQuery && (!current || current.status === 'loading') && <p className={styles.status}>Ieškoma žaidimų…</p>}
+            {current?.status === 'error' && <p role="alert" className={styles.status}>Nepavyko rasti žaidimų.</p>}
             {current?.status === 'success' && (
               <>
-                {current.result.data.length === 0 ? <p className={styles.status}>No games found.</p> : (
+                {current.result.data.length === 0 ? <p className={styles.status}>Žaidimų nerasta.</p> : (
                   <>
-                    <section className={styles.suggestions} aria-label="Search suggestions">
-                      <h2>Suggestions</h2>
+                    <section className={styles.suggestions} aria-label="Paieškos pasiūlymai">
+                      <h2>Pasiūlymai</h2>
                       {current.result.suggestions.map((phrase) => <button type="button" key={phrase} onClick={() => submit(phrase)}><span aria-hidden="true">↗</span>{phrase}</button>)}
                     </section>
-                    <section className={styles.games} aria-label="Search preview">
-                      <h2>Games</h2>
+                    <section className={styles.games} aria-label="Paieškos peržiūra">
+                      <h2>Žaidimai</h2>
                       {current.result.data.map((game) => <Link key={game.id} to={`/games/${game.id}`} onClick={() => store(true)} state={{ catalogReturn: catalogReturn(location, true) }}>
                         <div className={styles.cover}><GameCover name={game.name} img={game.img} /></div><span>{game.name}</span>
                       </Link>)}
                     </section>
-                    <button type="button" className={styles.allResults} onClick={() => submit(query)}>View all results for “{normalized}” →</button>
+                    <button type="button" className={styles.allResults} onClick={() => submit(query)}>Rodyti visus rezultatus pagal “{normalized}” →</button>
                   </>
                 )}
               </>

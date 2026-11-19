@@ -7,6 +7,8 @@ use App\Http\Controllers\GameSearchController;
 use App\Http\Controllers\OfferController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Resources\PromotionResource;
+use App\Models\Promotion;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +19,10 @@ Route::get('/health', function () {
 });
 
 Route::get('/offers', OfferController::class);
+
+Route::get('/promotions', function () {
+    return PromotionResource::collection(Promotion::query()->orderBy('id')->get());
+});
 
 Route::get('/games', [GameController::class, 'index']);
 

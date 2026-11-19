@@ -35,7 +35,7 @@ class GameSearchController extends Controller
             503, 'Search requires the pg_trgm migration.');
 
         $query = CatalogFilters::apply($this->rankedGames($validated['q']), $filters);
-        if ($sort !== null && $sort !== 'popular') {
+        if ($sort !== null) {
             CatalogSort::apply($query, $sort);
         }
 

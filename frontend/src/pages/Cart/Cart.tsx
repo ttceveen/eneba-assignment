@@ -49,22 +49,22 @@ export default function Cart() {
   return (
     <main className={styles.main}>
       <div className={styles.heading}>
-        <h1>Cart</h1>
-        <Link to="/">← Continue shopping</Link>
+        <h1>Krepšelis</h1>
+        <Link to="/">← Tęsti apsipirkimą</Link>
       </div>
-      {storageError && <p role="alert" className={styles.notice}>Browser storage is unavailable. Your cart works in this tab but cannot be saved.</p>}
+      {storageError && <p role="alert" className={styles.notice}>Naršyklės saugykla nepasiekiama. Šiame skirtuke krepšelis veikia, tačiau jo išsaugoti nepavyks.</p>}
       {items.length === 0 ? (
         <section className={styles.empty}>
-          <h2>Your cart is empty</h2>
-          <p>Choose a seller offer on a game page to add it to your cart.</p>
-          <Link className={styles.primary} to="/">Continue shopping</Link>
+          <h2>Jūsų krepšelis tuščias</h2>
+          <p>Žaidimo puslapyje pasirinkite pardavėjo pasiūlymą ir pridėkite jį į krepšelį.</p>
+          <Link className={styles.primary} to="/">Tęsti apsipirkimą</Link>
         </section>
       ) : (
         <>
-          {!ready && !failed && <p role="status">Loading cart offers...</p>}
-          {failed && <p role="alert" className={styles.notice}>Failed to load cart offers. Your saved items have been kept. <button type="button" onClick={() => setRevision((value) => value + 1)}>Try again</button></p>}
+          {!ready && !failed && <p role="status">Įkeliami krepšelio pasiūlymai…</p>}
+          {failed && <p role="alert" className={styles.notice}>Nepavyko įkelti krepšelio pasiūlymų. Išsaugotos prekės liko krepšelyje. <button type="button" onClick={() => setRevision((value) => value + 1)}>Bandyti dar kartą</button></p>}
           <div className={styles.layout}>
-            <section aria-label="Cart items" aria-busy={!ready && !failed}>
+            <section aria-label="Krepšelio prekės" aria-busy={!ready && !failed}>
               <ul className={styles.items}>
                 {items.map((item) => {
                   const detail = offers.get(item.offerId)
@@ -76,50 +76,50 @@ export default function Cart() {
                         {detail ? (
                           <>
                             <h2><Link to={`/games/${detail.game.id}`}>{detail.game.name}</Link></h2>
-                            <p>Seller: {detail.offer.seller.name}</p>
-                            <p className={styles.stock}>Available: {detail.offer.quantity}</p>
-                            {stockChanges.filter(change => change.offerId === item.offerId && change.to === quantity).map(change => <p key={change.offerId} role="status">Available stock changed. Quantity updated from {change.from} to {change.to}.</p>)}
+                            <p>Pardavėjas: {detail.offer.seller.name}</p>
+                            <p className={styles.stock}>Turimas kiekis: {detail.offer.quantity}</p>
+                            {stockChanges.filter(change => change.offerId === item.offerId && change.to === quantity).map(change => <p key={change.offerId} role="status">Pasikeitė turimas kiekis. Kiekis pakeistas iš {change.from} į {change.to}.</p>)}
                           </>
                         ) : (
                           <>
-                            <h2>Offer #{item.offerId}</h2>
-                            <p className={styles.unavailable}>{ready ? 'This offer is no longer available. Remove it to continue.' : failed ? 'Offer information could not be loaded.' : 'Loading offer information...'}</p>
+                            <h2>Pasiūlymas Nr. {item.offerId}</h2>
+                            <p className={styles.unavailable}>{ready ? 'Šis pasiūlymas nebepasiekiamas. Pašalinkite jį, kad galėtumėte tęsti.' : failed ? 'Nepavyko įkelti pasiūlymo informacijos.' : 'Įkeliama pasiūlymo informacija…'}</p>
                           </>
                         )}
                       </div>
-                      <button className={styles.remove} type="button" aria-label="Remove item from cart" onClick={() => removeItem(item.offerId)}>
+                      <button className={styles.remove} type="button" aria-label="Pašalinti prekę iš krepšelio" onClick={() => removeItem(item.offerId)}>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
                           <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" />
                         </svg>
                       </button>
                       <div className={styles.controls}>
-                        <div><span className={styles.label}>Unit price</span><span aria-label={`Unit price for offer ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price)) : '—'}</span></div>
+                        <div><span className={styles.label}>Vieneto kaina</span><span aria-label={`Pasiūlymo vieneto kaina ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price)) : '—'}</span></div>
                         <div>
-                          <span className={styles.label}>Quantity</span>
+                          <span className={styles.label}>Kiekis</span>
                           <div className={styles.quantity}>
-                            <button type="button" aria-label={`Decrease quantity for offer ${item.offerId}`} disabled={!detail || quantity <= 1} onClick={() => adjustQuantity(item.offerId, -1, detail?.offer.quantity ?? 0)}>−</button>
-                            <output aria-label={`Quantity for offer ${item.offerId}`}>{quantity}</output>
-                            <button type="button" aria-label={`Increase quantity for offer ${item.offerId}`} disabled={!detail || quantity >= detail.offer.quantity} onClick={() => adjustQuantity(item.offerId, 1, detail?.offer.quantity ?? 0)}>+</button>
+                            <button type="button" aria-label={`Sumažinti pasiūlymo kiekį ${item.offerId}`} disabled={!detail || quantity <= 1} onClick={() => adjustQuantity(item.offerId, -1, detail?.offer.quantity ?? 0)}>−</button>
+                            <output aria-label={`Pasiūlymo kiekis ${item.offerId}`}>{quantity}</output>
+                            <button type="button" aria-label={`Padidinti pasiūlymo kiekį ${item.offerId}`} disabled={!detail || quantity >= detail.offer.quantity} onClick={() => adjustQuantity(item.offerId, 1, detail?.offer.quantity ?? 0)}>+</button>
                           </div>
                         </div>
-                        <div><span className={styles.label}>Item total</span><strong aria-label={`Item total for offer ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price) * BigInt(quantity)) : '—'}</strong></div>
+                        <div><span className={styles.label}>Prekės suma</span><strong aria-label={`Pasiūlymo bendra suma ${item.offerId}`}>{detail ? formatCents(priceInCents(detail.offer.price) * BigInt(quantity)) : '—'}</strong></div>
                       </div>
                     </li>
                   )
                 })}
               </ul>
             </section>
-            <aside className={styles.summary} aria-label="Order summary">
-              <h2>Order summary</h2>
-              <div className={styles.total}><span>Total</span><strong aria-label="Cart total">{ready ? formatCents(total) : '—'}</strong></div>
-              {ready && !allAvailable && <p className={styles.unavailable}>Unavailable offers are excluded from the total. Remove them before continuing.</p>}
-              <p>Adding to cart does not reserve keys. Prices and availability will be checked by the server at checkout.</p>
-              <div className={styles.checkoutBar} aria-label="Checkout actions">
-                <div className={styles.mobileTotal}><span>Total</span><strong aria-label="Mobile cart total">{ready ? formatCents(total) : '—'}</strong></div>
-                <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => navigate('/checkout')}>Proceed to checkout</button>
+            <aside className={styles.summary} aria-label="Užsakymo suvestinė">
+              <h2>Užsakymo suvestinė</h2>
+              <div className={styles.total}><span>Iš viso</span><strong aria-label="Krepšelio suma">{ready ? formatCents(total) : '—'}</strong></div>
+              {ready && !allAvailable && <p className={styles.unavailable}>Nebepasiekiami pasiūlymai neįtraukti į bendrą sumą. Prieš tęsdami juos pašalinkite.</p>}
+              <p>Įdėjus prekę į krepšelį, raktai nerezervuojami. Kainos ir turimas kiekis bus patikrinti įforminant užsakymą.</p>
+              <div className={styles.checkoutBar} aria-label="Užsakymo veiksmai">
+                <div className={styles.mobileTotal}><span>Iš viso</span><strong aria-label="Krepšelio suma mobiliajame įrenginyje">{ready ? formatCents(total) : '—'}</strong></div>
+                <button className={styles.primary} type="button" disabled={!allAvailable} onClick={() => navigate('/checkout')}>Įforminti užsakymą</button>
               </div>
-              <button type="button" className={styles.refresh} onClick={() => setRevision((value) => value + 1)}>Refresh prices</button>
-              <Link className={styles.continue} to="/">Continue shopping</Link>
+              <button type="button" className={styles.refresh} onClick={() => setRevision((value) => value + 1)}>Atnaujinti kainas</button>
+              <Link className={styles.continue} to="/">Tęsti apsipirkimą</Link>
             </aside>
           </div>
         </>

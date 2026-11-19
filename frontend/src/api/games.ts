@@ -3,6 +3,7 @@ export type Offer = {
   seller: { id: number; name: string }
   price: string
   quantity: number
+  platform?: OfferPlatform
 }
 
 export type Game = {
@@ -10,6 +11,7 @@ export type Game = {
   name: string
   location: string[]
   img: string | null
+  description?: string | null
   min_price?: string | null
   offers_count?: number
   offers?: Offer[]
@@ -30,19 +32,30 @@ export async function getResponse(path: string, signal: AbortSignal, options: Re
 }
 
 export const catalogPlatforms = ['Steam', 'Xbox', 'PlayStation', 'Nintendo'] as const
+export type OfferPlatform = (typeof catalogPlatforms)[number]
+
+export function readPlatformContext(search: string): OfferPlatform | undefined {
+  const values = new URLSearchParams(search).getAll('platform')
+  if (values.length !== 1) return undefined
+  const normalized = values[0].trim().toLowerCase()
+  return catalogPlatforms.find(platform => platform.toLowerCase() === normalized)
+}
+
 export const catalogRegions = ['Global', 'Europe', 'North America'] as const
-export const catalogFilterKeys = ['platform', 'region', 'min_price', 'max_price'] as const
+export const catalogFilterKeys = ['platform', 'region', 'min_price', 'max_price', 'popular_only'] as const
 export type CatalogFilterKey = typeof catalogFilterKeys[number]
 
 export const catalogSortOptions = [
-  { value: 'price_asc', label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'name_asc', label: 'Name: A–Z' },
-  { value: 'name_desc', label: 'Name: Z–A' },
-  { value: 'newest', label: 'Newest' },
+  { value: 'price_asc', label: 'Kaina: nuo mažiausios' },
+  { value: 'price_desc', label: 'Kaina: nuo didžiausios' },
+  { value: 'newest', label: 'Data: nuo naujausių' },
+  { value: 'oldest', label: 'Data: nuo seniausių' },
+  { value: 'popular', label: 'Nuo populiariausių' },
+  { value: 'name_asc', label: 'Abėcėlė: A–Z' },
+  { value: 'name_desc', label: 'Abėcėlė: Z–A' },
 ] as const
 
-export type CatalogSort = 'popular' | 'alphabetical' | typeof catalogSortOptions[number]['value']
+export type CatalogSort = 'alphabetical' | typeof catalogSortOptions[number]['value']
 
 export type GamesPage = {
   data: Game[]
@@ -66,6 +79,7 @@ function isOffer(value: unknown): value is Offer {
   return isRecord(value) && isPositiveInteger(value.id)
     && isRecord(value.seller) && isPositiveInteger(value.seller.id) && typeof value.seller.name === 'string'
     && isPrice(value.price) && isPositiveInteger(value.quantity)
+    && (value.platform === undefined || catalogPlatforms.some(platform => platform === value.platform))
 }
 
 function hasOfferSummary(value: Record<string, unknown>): boolean {
@@ -81,6 +95,7 @@ function isGame(value: unknown): value is Game {
     && typeof value.name === 'string'
     && Array.isArray(value.location) && value.location.every((country) => typeof country === 'string')
     && (value.img === null || typeof value.img === 'string')
+    && (value.description === undefined || isNullableString(value.description))
     && hasOfferSummary(value)
     && (value.offers === undefined || (Array.isArray(value.offers) && value.offers.every(isOffer)))
 }
@@ -113,6 +128,23 @@ export async function getGames(page: number, sort: CatalogSort, signal: AbortSig
   return payload
 }
 
+export async function getRecentGames(ids: number[], signal: AbortSignal, filters?: URLSearchParams): Promise<GamesPage> {
+  if (ids.length === 0) {
+    return {
+      data: [],
+      links: { first: '', last: '', prev: null, next: null },
+      meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 },
+    }
+  }
+
+  const params = new URLSearchParams(filters)
+  // Send only the requested set, without disclosing the viewing order.
+  ids.toSorted((a, b) => a - b).forEach(id => params.append('ids[]', String(id)))
+  const page = await getGames(1, 'popular', signal, params)
+  const byId = new Map(page.data.map(game => [game.id, game]))
+  return { ...page, data: ids.flatMap(id => byId.get(id) ?? []) }
+}
+
 export async function getGame(id: string, signal: AbortSignal): Promise<Game | null> {
   const response = await getResponse(`/games/${encodeURIComponent(id)}`, signal)
   if (response.status === 404) return null
@@ -126,10 +158,10 @@ export async function getGame(id: string, signal: AbortSignal): Promise<Game | n
 
 export type SearchPreview = { data: Game[]; suggestions: string[] }
 
-export async function searchGames(page: number, query: string, signal: AbortSignal, filters?: URLSearchParams, sort: CatalogSort = 'popular'): Promise<GamesPage> {
+export async function searchGames(page: number, query: string, signal: AbortSignal, filters?: URLSearchParams, sort?: CatalogSort): Promise<GamesPage> {
   const params = new URLSearchParams(filters)
   params.set('q', query)
-  if (sort !== 'popular') params.set('sort', sort)
+  if (sort) params.set('sort', sort)
   params.set('page', String(page))
   const response = await getResponse(`/games/search?${params}`, signal)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)

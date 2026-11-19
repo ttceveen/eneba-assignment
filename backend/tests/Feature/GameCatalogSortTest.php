@@ -61,7 +61,8 @@ class GameCatalogSortTest extends TestCase
         foreach ([
             'region=Europe&sort=name_asc' => [$first->id, $second->id, $zeta->id],
             'sort=name_desc' => [$zeta->id, $first->id, $second->id],
-            'sort=newest' => [$first->id, $second->id, $zeta->id],
+            'sort=newest' => [$second->id, $first->id, $zeta->id],
+            'sort=oldest' => [$zeta->id, $first->id, $second->id],
             '' => [$second->id, $zeta->id, $first->id],
         ] as $query => $expected) {
             $this->assertSame($expected, array_column($this->getJson('/api/games?'.$query)->assertOk()->json('data'), 'id'));

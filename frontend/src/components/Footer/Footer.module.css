@@ -1,5 +1,10 @@
-.footer { border-top: 1px solid rgb(255 255 255 / 12%); background: #351183; color: #c5b1f1; }
-.footer > div { width: min(1200px, calc(100% - 64px)); margin-inline: auto; padding-block: 27px; font-size: 12px; line-height: 1.6; }
-@media (max-width: 600px) {
-  .footer > div { width: calc(100% - 40px); padding-block: 24px; }
-}
+.footer { border-top: 1px solid var(--store-border); background: var(--eneba-dark-overlay); color: var(--store-muted); font-family: var(--store-font); }
+.inner { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); gap: 30px; width: min(var(--store-width), calc(100% - var(--store-gutter) * 2)); margin-inline: auto; padding-top: 32px; }
+.logo { display: block; width: 125px; height: auto; }
+.links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.links h2 { margin: 0 0 6px; color: var(--store-text); font-size: 15px; }
+.links a { display: flex; align-items: center; min-height: 36px; width: fit-content; color: inherit; font-size: 14px; text-decoration: none; }
+.links a:hover { color: var(--store-mint); text-decoration: underline; }
+.links a:focus-visible { outline: 2px solid var(--store-yellow); outline-offset: 2px; }
+.credit { grid-column: 1 / -1; margin: 0; padding: 18px 0; border-top: 1px solid var(--store-border); font-size: 12px; }
+@media (max-width: 580px) { .inner { grid-template-columns: minmax(0, 1fr); gap: 18px; } }

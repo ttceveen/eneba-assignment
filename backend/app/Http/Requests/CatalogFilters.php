@@ -17,6 +17,7 @@ class CatalogFilters
     public static function rules(bool $hasMinimum): array
     {
         return [
+            'popular_only' => ['sometimes', 'required', 'boolean'],
             'platform' => ['sometimes', 'required', 'string', Rule::in(Offer::PLATFORMS)],
             'region' => ['sometimes', 'required', 'string', Rule::in(array_keys(self::REGIONS))],
             'min_price' => ['sometimes', 'required', 'numeric', 'min:0'],
@@ -26,6 +27,10 @@ class CatalogFilters
 
     public static function apply(Builder $games, array $filters): Builder
     {
+        if (! empty($filters['popular_only'])) {
+            $games->whereHas('popularity', fn (Builder $popularity) => $popularity->where('purchase_count', '>', 0));
+        }
+
         if (isset($filters['region'])) {
             $locations = self::REGIONS[$filters['region']];
             $games->where(function (Builder $query) use ($locations): void {
@@ -44,7 +49,7 @@ class CatalogFilters
             }
         };
 
-        if ($filters !== []) {
+        if (isset($filters['platform']) || isset($filters['region']) || isset($filters['min_price']) || isset($filters['max_price'])) {
             $games->whereHas('availableOffers', $matchingOffers);
         }
 

@@ -45,7 +45,8 @@ class OfferPresentationTest extends TestCase
             ->assertJsonPath('data.min_price', '9.99')->assertJsonPath('data.offers_count', 2);
         $this->assertSame([$cheap->id, $expensive->id], array_column($response->json('data.offers'), 'id'));
         foreach ($response->json('data.offers') as $offer) {
-            $this->assertSame(['id', 'seller', 'price', 'quantity'], array_keys($offer));
+            $this->assertSame(['id', 'seller', 'platform', 'price', 'quantity'], array_keys($offer));
+            $this->assertSame('Steam', $offer['platform']);
             $this->assertSame(['id', 'name'], array_keys($offer['seller']));
             $this->assertSame(5, $offer['quantity']);
         }

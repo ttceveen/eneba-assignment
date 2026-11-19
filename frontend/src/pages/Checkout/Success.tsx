@@ -27,7 +27,7 @@ export default function Success() {
           completePurchase(user.id, id, current.items.map(item => ({ offerId: item.offer_id, quantity: item.quantity })))
           if (readSession<CheckoutAttempt>(checkoutKey(user.id))?.orderId === id) sessionStorage.removeItem(checkoutKey(user.id))
           setCartNotice('')
-        } catch { setCartNotice('Your purchase is paid, but browser storage prevented the cart update. Your keys are still available below.') }
+        } catch { setCartNotice('Už pirkinį sumokėta, tačiau dėl naršyklės saugyklos nepavyko atnaujinti krepšelio. Raktus rasite žemiau.') }
         errorContext = 'load-keys'
         const delivered = await run(token => getOrderKeys(token, id, controller.signal))
         if (!controller.signal.aborted) { setKeys(delivered); setMessage('') }
@@ -37,18 +37,18 @@ export default function Success() {
   }, [id, user, run, navigate, completePurchase, retry])
   async function copy(id: number, value: string) {
     try { await navigator.clipboard.writeText(value); setCopied(id) }
-    catch { setMessage('Copy is unavailable. Select and copy the key manually.') }
+    catch { setMessage('Nepavyko nukopijuoti rakto. Pažymėkite ir nukopijuokite jį rankiniu būdu.') }
   }
-  return <main className={styles.main}><h1>{order?.id === id && order.status === 'paid' ? message ? 'Payment confirmed' : 'Purchase successful' : message ? 'Purchase could not be verified' : 'Checking purchase'}</h1>
-    {!order && !message && <p role="status">Checking your purchase...</p>}
+  return <main className={`${styles.main} ${styles.success}`}><h1>{order?.id === id && order.status === 'paid' ? message ? 'Mokėjimas patvirtintas' : 'Sėkmingai įsigijote' : message ? 'Nepavyko patikrinti pirkinio' : 'Tikrinamas pirkinys'}</h1>
+    {!order && !message && <p role="status">Tikrinamas jūsų pirkinys…</p>}
     {order && <Summary order={order} />}
     {cartNotice && <p role="alert" className={styles.notice}>{cartNotice}</p>}
-    {message && <p role="alert" className={styles.notice}>{message} <button onClick={() => setRetry(v => v + 1)}>{order ? 'Retry loading keys' : 'Retry loading order'}</button></p>}
-    {order && !keys && !message && <p role="status">Loading purchased keys...</p>}
-    {keys && <section className={styles.panel} aria-label="Purchased keys"><h2>Your digital keys</h2>{keys.items.map(item => <div key={item.order_item_id}>
-      <h3>{order?.items.find(i => i.id === item.order_item_id)?.game.name ?? 'Purchased game'}</h3>
-      {item.keys.map(key => <div className={styles.key} key={key.id}><code>{key.key_value}</code><button onClick={() => void copy(key.id, key.key_value)} aria-label={`Copy key ${key.id}`}>{copied === key.id ? 'Copied!' : 'Copy'}</button></div>)}
-    </div>)}<p role="status">{copied !== null ? 'Key copied to clipboard.' : ''}</p></section>}
-    <Link to="/">Continue shopping</Link><Link to="/cart">Back to cart</Link>
+    {message && <p role="alert" className={styles.notice}>{message} <button onClick={() => setRetry(v => v + 1)}>{order ? 'Bandyti įkelti raktus dar kartą' : 'Bandyti įkelti užsakymą dar kartą'}</button></p>}
+    {order && !keys && !message && <p role="status">Įkeliami įsigyti raktai…</p>}
+    {keys && <section className={styles.panel} aria-label="Įsigyti raktai"><h2>Jūsų skaitmeniniai raktai</h2>{keys.items.map(item => <div key={item.order_item_id}>
+      <h3>{order?.items.find(i => i.id === item.order_item_id)?.game.name ?? 'Įsigytas žaidimas'}</h3>
+      {item.keys.map(key => <div className={styles.key} key={key.id}><code>{key.key_value}</code><button onClick={() => void copy(key.id, key.key_value)} aria-label={`Kopijuoti raktą ${key.id}`}>{copied === key.id ? 'Nukopijuota!' : 'Kopijuoti'}</button></div>)}
+    </div>)}<p role="status">{copied !== null ? 'Raktas nukopijuotas į iškarpinę.' : ''}</p></section>}
+    <Link to="/" className={styles.primary}>Tęsti apsipirkimą</Link><Link to="/cart">Grįžti į krepšelį</Link>
   </main>
 }

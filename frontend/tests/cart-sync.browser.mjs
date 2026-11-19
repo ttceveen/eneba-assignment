@@ -30,22 +30,22 @@ async function setup(t, saved = items(1)) {
   t.after(async () => { await context.close(); assert.deepEqual(errors, []) })
   const page = await context.newPage(); page.setDefaultTimeout(5000)
   await page.goto(base + '/cart')
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   await page.evaluate(({ key, saved }) => localStorage.setItem(key, JSON.stringify(saved)), { key, saved })
   return { context, page, api, requests }
 }
 const savedCart = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key)), key)
-const ready = (page) => page.getByLabel('Cart total', { exact: true }).filter({ hasText: '€' }).waitFor()
+const ready = (page) => page.getByLabel('Krepšelio suma', { exact: true }).filter({ hasText: '€' }).waitFor()
 async function quantity(page, id, expected) {
-  await page.waitForFunction(({ id, expected }) => document.querySelector(`[aria-label="Quantity for offer ${id}"]`)?.textContent === String(expected), { id, expected })
+  await page.waitForFunction(({ id, expected }) => document.querySelector(`[aria-label="Pasiūlymo kiekis ${id}"]`)?.textContent === String(expected), { id, expected })
 }
 test('F02 stale details tab cannot overwrite a newer cart quantity', async (t) => {
   const { context, page } = await setup(t)
   await page.goto(base + '/games/1'); await page.getByRole('heading', { name: 'Game 1', exact: true }).waitFor()
   const cart = await context.newPage(); await cart.goto(base + '/cart'); await ready(cart)
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(cart, 1, 2)
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(cart, 1, 2)
   await pause()
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await pause()
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await pause()
   assert.equal((await savedCart(cart))[0].quantity, 3)
   await quantity(cart, 1, 3)
 })
@@ -73,19 +73,19 @@ function heldResponse() {
   }
 }
 async function badge(page, count) {
-  await page.getByRole('link', { name: `Shopping cart, ${count} ${count === 1 ? 'item' : 'items'}`, exact: true }).waitFor()
+  await page.getByRole('link', { name: `Pirkinių krepšelis. Prekių: ${count}`, exact: true }).waitFor()
 }
 
 test('quantity, addition and removal synchronize and survive reload in both tabs', async (t) => {
   const { context, page } = await setup(t)
   await page.reload(); await ready(page)
   const second = await context.newPage(); await second.goto(base + '/cart'); await ready(second)
-  await page.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click()
+  await page.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click()
   await quantity(second, 1, 2)
   await second.goto(base + '/games/2'); await second.getByRole('heading', { name: 'Game 2', exact: true }).waitFor()
-  await second.getByRole('button', { name: 'Add to cart', exact: true }).click()
+  await second.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
   await page.locator('[data-offer-id="2"]').waitFor(); await ready(page)
-  await page.locator('[data-offer-id="1"]').getByRole('button', { name: 'Remove item from cart', exact: true }).click(); await badge(second, 1)
+  await page.locator('[data-offer-id="1"]').getByRole('button', { name: 'Pašalinti prekę iš krepšelio', exact: true }).click(); await badge(second, 1)
   assert.deepEqual(await savedCart(page), [{ offerId: 2, quantity: 1 }])
   await page.reload(); await ready(page); await second.reload(); await badge(second, 1)
   assert.deepEqual(await savedCart(second), [{ offerId: 2, quantity: 1 }])
@@ -94,15 +94,15 @@ test('quantity, addition and removal synchronize and survive reload in both tabs
 test('20 unique offers reject new offer with message; existing offer and freed slot still work', async (t) => {
   const { context, page } = await setup(t, items(20))
   await page.goto(base + '/games/21'); await page.getByRole('heading', { name: 'Game 21', exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click()
-  await page.getByRole('status').filter({ hasText: 'Your cart can contain up to 20 offers.' }).waitFor()
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
+  await page.getByRole('status').filter({ hasText: 'Krepšelyje gali būti ne daugiau kaip 20 pasiūlymų.' }).waitFor()
   assert.deepEqual(await savedCart(page), items(20))
   const cart = await context.newPage(); await cart.goto(base + '/cart'); await ready(cart)
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(cart, 1, 2)
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(cart, 1, 2)
   assert.equal((await savedCart(cart)).length, 20)
-  await cart.locator('[data-offer-id="20"]').getByRole('button', { name: 'Remove item from cart', exact: true }).click(); await badge(page, 20)
+  await cart.locator('[data-offer-id="20"]').getByRole('button', { name: 'Pašalinti prekę iš krepšelio', exact: true }).click(); await badge(page, 20)
   // Badge is quantity sum: 19 positions, including one quantity=2.
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click()
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
   await cart.locator('[data-offer-id="21"]').waitFor(); assert.equal((await savedCart(cart)).length, 20)
   assert.ok(!(await savedCart(cart)).some((item) => item.offerId === 20))
 })
@@ -113,8 +113,8 @@ test('old details response cannot clamp newer edits made after its request', asy
   api.details = (route, id) => old.handle(route, { data: game(id, 2) })
   await page.goto(base + '/games/1'); await old.started
   const cart = await context.newPage(); await cart.goto(base + '/cart'); await ready(cart)
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(cart, 1, 2)
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(cart, 1, 3)
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(cart, 1, 2)
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(cart, 1, 3)
   old.release(); await page.getByRole('heading', { name: 'Game 1', exact: true }).waitFor(); await pause()
   assert.equal((await savedCart(cart))[0].quantity, 3); await badge(page, 3)
 })
@@ -129,11 +129,11 @@ test('old cart response cannot overwrite newer external quantity or metadata', a
   api.details = (route, id) => json(route, 200, { data: game(id, 5) })
   await page.reload(); await old.started
   const second = await context.newPage(); await second.goto(base + '/games/1'); await second.getByRole('heading', { name: 'Game 1', exact: true }).waitFor()
-  await second.getByRole('button', { name: 'Add to cart', exact: true }).click(); await badge(second, 2)
-  await second.getByRole('button', { name: 'Add to cart', exact: true }).click(); await badge(second, 3)
+  await second.getByRole('button', { name: 'Į krepšelį', exact: true }).click(); await badge(second, 2)
+  await second.getByRole('button', { name: 'Į krepšelį', exact: true }).click(); await badge(second, 3)
   await quantity(page, 1, 3); old.release(); await pause()
   assert.equal((await savedCart(page))[0].quantity, 3); await quantity(page, 1, 3)
-  await page.getByText('Available: 5', { exact: true }).waitFor()
+  await page.getByText('Turimas kiekis: 5', { exact: true }).waitFor()
 })
 
 test('different additions read latest storage even before receiving queued storage events', async (t) => {
@@ -144,8 +144,8 @@ test('different additions read latest storage even before receiving queued stora
     window.pauseCartEvents = true
     addEventListener('storage', (event) => { if (window.pauseCartEvents && event.key === 'eneba:cart') event.stopImmediatePropagation() }, true)
   })
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click(); await badge(page, 2)
-  await second.getByRole('button', { name: 'Add to cart', exact: true }).click()
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click(); await badge(page, 2)
+  await second.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
   await badge(page, 3); await badge(second, 3)
   await second.evaluate(() => { window.pauseCartEvents = false })
   assert.deepEqual((await savedCart(page)).map((item) => item.offerId), [1, 2, 3])
@@ -155,7 +155,7 @@ test('two tabs changing one quantity converge to the last stored value without e
   const { context, page } = await setup(t, [{ offerId: 1, quantity: 2 }])
   await page.reload(); await ready(page)
   const second = await context.newPage(); await second.goto(base + '/cart'); await ready(second)
-  await Promise.all([page.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(), second.getByRole('button', { name: 'Decrease quantity for offer 1', exact: true }).click()])
+  await Promise.all([page.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(), second.getByRole('button', { name: 'Sumažinti pasiūlymo kiekį 1', exact: true }).click()])
   await pause(); const value = (await savedCart(page))[0].quantity
   assert.ok([1, 2, 3].includes(value))
   await quantity(page, 1, value); await quantity(second, 1, value)
@@ -168,13 +168,13 @@ test('simultaneous additions at 19 positions never save 21; losing addition is r
   const { context, page } = await setup(t, items(19))
   await page.goto(base + '/games/20'); await page.getByRole('heading', { name: 'Game 20', exact: true }).waitFor()
   const second = await context.newPage(); await second.goto(base + '/games/21'); await second.getByRole('heading', { name: 'Game 21', exact: true }).waitFor()
-  await Promise.all([page.getByRole('button', { name: 'Add to cart', exact: true }).click(), second.getByRole('button', { name: 'Add to cart', exact: true }).click()])
+  await Promise.all([page.getByRole('button', { name: 'Į krepšelį', exact: true }).click(), second.getByRole('button', { name: 'Į krepšelį', exact: true }).click()])
   await pause(); const actual = await savedCart(page)
   assert.equal(actual.length, 20); assert.deepEqual(actual.slice(0, 19), items(19))
   await badge(page, 20); await badge(second, 20)
   const rejected = actual.some((item) => item.offerId === 20) ? second : page
-  await rejected.getByRole('button', { name: 'Add to cart', exact: true }).click()
-  await rejected.getByRole('status').filter({ hasText: 'Your cart can contain up to 20 offers.' }).waitFor()
+  await rejected.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
+  await rejected.getByRole('status').filter({ hasText: 'Krepšelyje gali būti ne daugiau kaip 20 pasiūlymų.' }).waitFor()
   assert.equal((await savedCart(rejected)).length, 20)
 })
 
@@ -187,7 +187,7 @@ test('storage events do not echo canonical snapshots back; external oversized sn
     const set = Storage.prototype.setItem
     Storage.prototype.setItem = function (key, value) { if (key === 'eneba:cart') window.cartWrites++; return set.call(this, key, value) }
   })
-  await page.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(second, 1, 2); await pause()
+  await page.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(second, 1, 2); await pause()
   assert.equal(await page.evaluate(() => window.cartWrites), 1)
   assert.equal(await second.evaluate(() => window.cartWrites), 0)
   await page.evaluate((key) => dispatchEvent(new StorageEvent('storage', { key, storageArea: localStorage, newValue: JSON.stringify([{ offerId: 1, quantity: 1 }]) })), key)
@@ -205,12 +205,12 @@ test('storage events do not echo canonical snapshots back; external oversized sn
 test('legacy normalization survives API errors and retains unavailable offers', async (t) => {
   const { page, api, requests } = await setup(t, items(21))
   api.offers = (route) => json(route, 503, { message: 'Fixture failure' })
-  await page.reload(); await page.getByRole('alert').filter({ hasText: 'Failed to load cart offers.' }).waitFor()
+  await page.reload(); await page.getByRole('alert').filter({ hasText: 'Nepavyko įkelti krepšelio pasiūlymų.' }).waitFor()
   assert.deepEqual(await savedCart(page), items(20))
   assert.ok(requests.every((ids) => ids.length <= 20))
   api.offers = (route, ids) => json(route, 200, { data: ids.filter((id) => id !== 1).map((id) => offer(id)) })
-  await page.getByRole('button', { name: 'Try again', exact: true }).click(); await ready(page)
-  await page.getByText('This offer is no longer available. Remove it to continue.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Bandyti dar kartą', exact: true }).click(); await ready(page)
+  await page.getByText('Šis pasiūlymas nebepasiekiamas. Pašalinkite jį, kad galėtumėte tęsti.', { exact: true }).waitFor()
   assert.deepEqual(await savedCart(page), items(20))
 })
 
@@ -222,20 +222,20 @@ test('disabled storage keeps subsequent edits in memory and displays the existin
     const set = Storage.prototype.setItem
     Storage.prototype.setItem = function (key, value) { if (key === 'eneba:cart') throw new DOMException('Blocked fixture storage', 'QuotaExceededError'); return set.call(this, key, value) }
   })
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click(); await badge(page, 1)
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click(); await badge(page, 2)
-  await page.getByRole('link', { name: 'Shopping cart, 2 items', exact: true }).click(); await ready(page)
-  await page.getByRole('alert').filter({ hasText: 'Browser storage is unavailable.' }).waitFor(); await quantity(page, 1, 2)
-  await page.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await quantity(page, 1, 3)
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click(); await badge(page, 1)
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click(); await badge(page, 2)
+  await page.getByRole('link', { name: 'Pirkinių krepšelis. Prekių: 2', exact: true }).click(); await ready(page)
+  await page.getByRole('alert').filter({ hasText: 'Naršyklės saugykla nepasiekiama.' }).waitFor(); await quantity(page, 1, 2)
+  await page.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await quantity(page, 1, 3)
 })
 
 test('a full cart permits repeated Add to cart for an existing offer; badge counts units', async (t) => {
   const { page, api } = await setup(t, items(20))
   api.details = (route, id) => json(route, 200, { data: game(id, 5) })
   await page.goto(base + '/games/1'); await page.getByRole('heading', { name: 'Game 1', exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click()
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
   await badge(page, 21)
-  await page.getByRole('status').filter({ hasText: 'Added to cart.' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'Pridėta į krepšelį.' }).waitFor()
   const actual = await savedCart(page)
   assert.equal(actual.length, 20); assert.equal(actual[0].quantity, 2)
 })
@@ -246,8 +246,8 @@ test('an old API response cannot clamp after quantity changes and then returns t
   api.details = (route, id) => old.handle(route, { data: game(id, 2) })
   await page.goto(base + '/games/1'); await old.started
   const cart = await context.newPage(); await cart.goto(base + '/cart'); await ready(cart)
-  await cart.getByRole('button', { name: 'Increase quantity for offer 1', exact: true }).click(); await badge(page, 4)
-  await cart.getByRole('button', { name: 'Decrease quantity for offer 1', exact: true }).click(); await badge(page, 3)
+  await cart.getByRole('button', { name: 'Padidinti pasiūlymo kiekį 1', exact: true }).click(); await badge(page, 4)
+  await cart.getByRole('button', { name: 'Sumažinti pasiūlymo kiekį 1', exact: true }).click(); await badge(page, 3)
   old.release(); await page.getByRole('heading', { name: 'Game 1', exact: true }).waitFor(); await pause()
   assert.equal((await savedCart(cart))[0].quantity, 3)
 })

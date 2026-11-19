@@ -111,6 +111,9 @@ class GameSearchTest extends TestCase
 
         $filters = ['platform' => 'Steam', 'region' => 'Global', 'min_price' => '10', 'max_price' => '50'];
         $this->assertSame([$exact->id, $extension->id], array_column($this->search('portal', filters: $filters)['data'], 'id'));
+        $extension->popularity()->update(['purchase_count' => 2]);
+        $this->assertSame([$extension->id, $exact->id],
+            array_column($this->search('portal', filters: [...$filters, 'sort' => 'popular'])['data'], 'id'));
         $filters['sort'] = 'price_asc';
         $result = $this->search('portl', filters: $filters);
         $this->assertSame([$extension->id, $exact->id], array_column($result['data'], 'id'));

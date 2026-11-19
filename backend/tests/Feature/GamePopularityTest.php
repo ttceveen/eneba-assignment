@@ -8,6 +8,7 @@ use Database\Seeders\GamePopularitySeeder;
 use Database\Seeders\GameSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class GamePopularityTest extends TestCase
@@ -24,7 +25,7 @@ class GamePopularityTest extends TestCase
         $this->assertSame($game->id, $game->popularity->game->id);
         $this->assertDatabaseCount('game_popularities', 1);
         $this->assertFalse($game->popularity->incrementing);
-        $this->assertFalse($game->popularity->timestamps);
+        $this->assertNotNull($game->popularity->created_at);
         $this->assertSame('game_id', $game->popularity->getKeyName());
     }
 
@@ -100,26 +101,54 @@ class GamePopularityTest extends TestCase
         }
     }
 
-    public function test_seeders_preserve_nonzero_counters_and_do_not_change_games(): void
+    public function test_demo_seed_is_reproducible_and_does_not_overwrite_later_sales(): void
     {
         $this->seed(GameSeeder::class);
-        $this->assertDatabaseCount('games', 40);
-        $this->assertDatabaseCount('game_popularities', 40);
-        $game = Game::where('name', 'Cyberpunk 2077')->firstOrFail();
-        $game->popularity->update(['purchase_count' => 777]);
-        $gamesBefore = Game::orderBy('id')->get()->map(fn ($game) => $game->getRawOriginal())->all();
+        $gameIds = Game::orderBy('id')->pluck('id');
+        $this->assertCount(40, $gameIds);
+        $snapshot = fn () => GamePopularity::orderBy('game_id')->pluck('purchase_count', 'game_id')->all();
 
-        $this->seed(GamePopularitySeeder::class);
-        $this->assertSame(777, $game->popularity()->first()->purchase_count);
-        foreach (["The Witcher 3: Wild Hunt" => 320, "Baldur's Gate 3" => 200, 'Grand Theft Auto V' => 110, 'Elden Ring' => 75] as $name => $count) {
-            $this->assertSame($count, Game::where('name', $name)->firstOrFail()->popularity->purchase_count);
+        DB::beginTransaction();
+        try {
+            $this->seed(GamePopularitySeeder::class);
+            $first = $snapshot();
+        } finally {
+            DB::rollBack();
         }
-        $before = GamePopularity::orderBy('game_id')->get()->toArray();
-        $this->seed(GamePopularitySeeder::class);
-        $this->seed(GameSeeder::class);
 
-        $this->assertSame($before, GamePopularity::orderBy('game_id')->get()->toArray());
-        $this->assertSame($gamesBefore, Game::orderBy('id')->get()->map(fn ($game) => $game->getRawOriginal())->all());
+        $this->seed(GamePopularitySeeder::class);
+        $this->assertSame($first, $snapshot());
+        $positive = array_filter($first);
+        $this->assertCount(12, $positive);
+        $this->assertCount(28, array_filter($first, fn (int $count) => $count === 0));
+        $this->assertGreaterThanOrEqual(1, min($positive));
+        $this->assertLessThanOrEqual(1000, max($positive));
+        $this->assertGreaterThan(1, count(array_unique($positive)));
+
+        GamePopularity::recordSale(array_key_first($positive), 2);
+        $afterSale = $snapshot();
+        $this->seed(GamePopularitySeeder::class);
+        $this->assertSame($afterSale, $snapshot());
+        $this->assertSame($gameIds->all(), Game::orderBy('id')->pluck('id')->all());
         $this->assertDatabaseCount('game_popularities', 40);
+
+        GamePopularity::query()->update(['purchase_count' => 0]);
+        $this->seed(GamePopularitySeeder::class);
+        $this->assertSame(0, GamePopularity::sum('purchase_count'));
+    }
+
+    public function test_demo_seed_rounds_up_and_refuses_preexisting_activity(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            Game::create(['name' => 'Demo '.$i, 'location' => ['GLOBAL']]);
+        }
+        $popularity = GamePopularity::firstOrFail();
+        $popularity->update(['purchase_count' => 1]);
+        $this->seed(GamePopularitySeeder::class);
+        $this->assertSame(1, GamePopularity::sum('purchase_count'));
+
+        $popularity->update(['purchase_count' => 0]);
+        $this->seed(GamePopularitySeeder::class);
+        $this->assertSame(2, GamePopularity::where('purchase_count', '>', 0)->count());
     }
 }
