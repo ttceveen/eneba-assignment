@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\CheckoutConflictException;
+use App\Models\GamePopularity;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
@@ -202,10 +203,7 @@ class PaymentService
                             ->where('order_items.order_id', $order->id)->selectRaw('offers.game_id, SUM(order_items.quantity) AS units')
                             ->groupBy('offers.game_id')->orderBy('offers.game_id')->get();
                         foreach ($totals as $total) {
-                            $updated = DB::table('game_popularities')->where('game_id', $total->game_id)->increment('purchase_count', (int) $total->units);
-                            if ($updated !== 1) {
-                                throw new CheckoutConflictException('Purchase statistics are missing for this game.');
-                            }
+                            GamePopularity::recordSale((int) $total->game_id, (int) $total->units);
                         }
                         if ($order->reserved_until->lte(now()) && ! $this->inventory->hasProtectedConfirmation($order)) {
                             throw new CheckoutConflictException('The reservation expired during completion.');

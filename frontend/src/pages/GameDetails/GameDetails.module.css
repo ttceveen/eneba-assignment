@@ -1,61 +1,54 @@
-/* Game Details uses the same surfaces and accents as Home and GameCard. */
-.main { width: 100%; margin: 0; padding: 32px max(20px, calc((100% - 1200px) / 2)) 64px; flex: 1; background: radial-gradient(ellipse at 80% 0, #222038 0, transparent 45%), #11121c; color: #f5f5fa; }
-.back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 24px; color: #b6b3ca; font-size: 14px; line-height: 1.5; text-decoration: none; }
-.back:hover { color: #c4b5fd; }
-.back:focus-visible { outline: 3px solid #c4b5fd; outline-offset: 4px; border-radius: 4px; }
-.layout { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); align-items: start; gap: 40px; }
-.cover { width: 100%; overflow: hidden; border: 1px solid #353345; border-radius: 14px; background: #1c1d2c; box-shadow: 0 12px 32px #0004; }
-.cover > img, .cover > div { aspect-ratio: 2 / 3; height: auto; object-fit: cover; background: #1c1d2c; }
-.cover > div { color: #aaa8bf; }
+.main { width: 100%; margin: 0; padding: clamp(12px, 1.6vw, 24px) max(16px, calc((100% - 1200px) / 2)) 40px; flex: 1; background: var(--eneba-background); color: #fff; }
+.back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 8px; color: #e5dbff; font-size: 14px; line-height: 1.5; text-decoration: none; }
+.back:hover { color: #fad318; }
+.back:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+.layout { display: grid; grid-template-columns: clamp(68px, 21vw, 122px) minmax(0, 1fr); align-items: start; gap: clamp(12px, 2vw, 28px); }
+.cover { width: 100%; overflow: hidden; background: #351183; }
+.cover > img { aspect-ratio: auto 2 / 3; height: auto; background: #351183; }
+.cover > div { gap: 4px; padding: 4px; color: #e5dbff; text-align: center; overflow-wrap: anywhere; }
+.cover svg { width: min(60%, 54px); }
 .information { min-width: 0; }
-.information h1 { margin: 0 0 24px; color: #f5f5fa; font-size: clamp(28px, 3vw, 40px); font-weight: 750; letter-spacing: -1px; line-height: 1.2; overflow-wrap: anywhere; }
-.availability { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 16px 20px; border: 1px solid #343345; border-radius: 10px; background: #1c1d2c; }
-.availability h2 { margin: 0; color: #b6b3ca; font-size: 13px; font-weight: 400; line-height: 1.5; }
-.availability p { min-width: 0; margin: 0; color: #72d9be; font-size: 14px; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
-.offers { margin-top: 28px; }
-.offers h2 { margin: 0 0 16px; font-size: 20px; letter-spacing: -.4px; line-height: 1.4; overflow-wrap: anywhere; }
-.offerList { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
-.offer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 20px; padding: 22px; border: 1px solid #3b3b50; border-radius: 12px; background: #1c1d2c; box-shadow: 0 4px 16px #0002; }
-.seller { min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 700; line-height: 1.5; }
-.offerPrice { min-width: 0; color: #ffe16a; font-size: clamp(24px, 2.5vw, 30px); font-weight: 750; letter-spacing: -.7px; line-height: 1.2; overflow-wrap: anywhere; text-align: right; }
-.quantity { grid-column: 1 / -1; color: #b6b3ca; font-size: 13px; line-height: 1.5; }
-.offer > div { min-width: 0; padding-top: 6px; }
-.main .offer button { min-height: 48px; padding: 12px 24px; border: 1px solid #ffe16a; border-radius: 9px; background: #ffe16a; color: #1c1728; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.5; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
-.main .offer button:not(:disabled):hover { border-color: #ffec9a; background: #ffec9a; }
-.main .offer button:focus-visible { outline: 3px solid #c4b5fd; outline-offset: 4px; }
-.main .offer button:disabled { border-color: #3b3b50; background: #29283b; color: #aaa8bf; cursor: not-allowed; }
-.offer [role="status"] { min-width: 0; color: #72d9be; overflow-wrap: anywhere; }
-.noOffers, .main > p { margin: 0; padding: 22px; border: 1px solid #3b3b50; border-radius: 12px; background: #1c1d2c; color: #b6b3ca; font-size: 14px; line-height: 1.6; }
-.main > p[role="alert"] { border-color: #8a526a; background: #352230; color: #ffcede; }
-@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 28px; } .offer { padding: 18px; gap: 10px 14px; } }
-@media (max-width: 700px) {
-  .main { padding-block: 20px 40px; }
-  .back { margin-bottom: 20px; }
-  .layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .cover { width: min(100%, 280px); justify-self: center; }
-  .information h1 { margin-bottom: 20px; }
-  .offer > div { flex-direction: column; align-items: stretch; gap: 8px; }
-  .main .offer button { width: 100%; }
-  .offer [role="status"]:empty { min-height: 0; }
-}
-@media (prefers-reduced-motion: reduce) { .main .offer button { transition: none; } }
-
-/* Keep the desktop composition; bring the first mobile offer closer. */
-@media (max-width: 400px) {
-  .main { padding-top: 8px; }
-  .back { margin-bottom: 8px; }
-  .layout { gap: 12px; }
-  .cover { width: min(100%, 180px); }
-  .information h1 { margin-bottom: 12px; }
-  .availability { padding: 8px 12px; }
-  .offers { margin-top: 14px; }
-  .offers h2 { margin-bottom: 10px; font-size: 18px; }
-  .offer { padding: 14px; gap: 6px 14px; }
-}
-
-.retry { display: block; min-height: 44px; margin-top: 12px; padding: 10px 18px; border: 1px solid #a78bfa; border-radius: 9px; background: #29283b; color: #f5f5fa; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-.retry:hover { background: #383048; }
-.retry:focus-visible { outline: 3px solid #c4b5fd; outline-offset: 4px; }
+.information h1 { margin: 0 0 10px; font-size: clamp(22px, 2.55vw, 34px); font-weight: 750; letter-spacing: -.4px; line-height: 1.18; overflow-wrap: anywhere; }
+.facts { margin: 0; }
+.facts > div { display: grid; grid-template-columns: minmax(58px, 28%) minmax(0, 1fr); align-items: baseline; gap: 6px 12px; padding: 4px 0; border-top: 1px solid #a78bfa; }
+.facts dt { color: #e5dbff; font-size: 13px; }
+.facts dd { min-width: 0; margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.facts > div:first-child dd { color: #63e3c2; }
+.offers { grid-column: 1 / -1; min-width: 0; }
+.offers h2 { margin: 0 0 6px; font-size: 18px; line-height: 1.4; }
+.offerList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.offer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); align-items: center; gap: 3px 10px; padding: 6px 12px 9px; background: #351183; }
+.offer.selected { padding: 8px 12px 12px; background: #5825cc; }
+.seller { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 36px; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; line-height: 1.4; }
+label.seller { cursor: pointer; }
+.seller input { flex: none; width: 14px; height: 14px; margin: 0; accent-color: #fad318; }
+.seller input:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.sellerDetails { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+.platform { padding: 1px 5px; background: #1f0a4d; color: #fff; font-size: 11px; line-height: 1.4; }
+.offerPrice { min-width: 0; color: #fff; font-size: 18px; font-weight: 750; letter-spacing: -.55px; line-height: 1.2; overflow-wrap: anywhere; text-align: right; }
+.offer.selected .offerPrice { font-size: clamp(25px, 3vw, 31px); }
+.quantity { grid-column: 1; color: #e5dbff; font-size: 13px; line-height: 1.5; }
+.offer > div { grid-column: 2; justify-content: end; min-width: 0; gap: 4px; }
+.offer.selected .quantity, .offer.selected > div { grid-column: 1 / -1; }
+.main .offer button { min-height: 44px; max-width: 100%; padding: 7px 12px; overflow-wrap: anywhere; border: 1px solid #fad318; border-radius: 0; background: transparent; color: #fad318; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.5; cursor: pointer; }
+.main .offer.selected button { min-height: 48px; width: 100%; background: #fad318; color: #000; }
+.main .offer button:not(:disabled):hover { border-color: #ffe469; background: #ffe469; color: #000; }
+.main .offer button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.main .offer button:disabled { border-color: #a78bfa; background: #351183; color: #e5dbff; cursor: not-allowed; }
+.offer [role="status"] { min-width: 0; color: #63e3c2; overflow-wrap: anywhere; }
+.offer > div [role="status"] { flex-basis: 100%; }
+.offer [role="status"]:empty { position: absolute; width: 1px; height: 1px; min-height: 0; overflow: hidden; clip-path: inset(50%); }
+.offer .stockNotice { grid-column: 1 / -1; order: 1; margin: 0; color: #fad318; font-size: 13px; line-height: 1.6; }
+.noOffers, .main > p { margin: 0; padding: 16px; background: #351183; color: #e5dbff; font-size: 14px; line-height: 1.6; }
+.main > p[role="alert"] { border-inline-start: 2px solid #f3bbce; color: #ffcede; }
+.retry { display: block; min-height: 44px; margin-top: 12px; padding: 10px 18px; border: 1px solid #a78bfa; border-radius: 0; background: #351183; color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.retry:hover { background: #5825cc; }
+.retry:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 .retry:disabled { opacity: .45; cursor: not-allowed; }
 
-.stockNotice { grid-column: 1 / -1; margin: 0; color: #ffe16a; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+@media (min-width: 740px) {
+  .layout { grid-template-columns: clamp(122px, calc(20vw - 28px), 260px) minmax(0, 1fr) clamp(270px, 30vw, 360px); }
+  .offers { grid-column: auto; }
+  .information h1 { margin-bottom: 16px; }
+  .facts > div { padding-block: 10px; }
+}

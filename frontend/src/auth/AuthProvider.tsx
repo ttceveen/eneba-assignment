@@ -25,7 +25,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
           token.current = null
           try { sessionStorage.removeItem(AUTH_KEY) } catch { /* Storage may be unavailable. */ }
           setState({ user: null, loading: false, error: null, checkedKey: checkKey })
-        } else setState({ user: null, loading: false, error: 'Unable to verify your account. Please retry.', checkedKey: checkKey })
+        } else setState({ user: null, loading: false, error: 'Nepavyko patikrinti paskyros. Bandykite dar kartą.', checkedKey: checkKey })
       }
     }
     void restore()

@@ -1,0 +1,19 @@
+.banner {
+  display: block;
+  height: min(320px, calc(134px + 14vw));
+  background: var(--eneba-background);
+}
+
+.banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Keep the logo and embedded CTA in frame as the artwork crops. */
+  object-position: center 35%;
+}
+
+.banner:focus-visible {
+  outline: 2px solid var(--store-yellow);
+  outline-offset: -2px;
+}

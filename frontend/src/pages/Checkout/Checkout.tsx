@@ -14,7 +14,7 @@ export default function Checkout() {
   const { getSnapshot } = useCart()
   const run = useConnection(), navigate = useNavigate()
   const [retry, setRetry] = useState(0)
-  const [state, setState] = useState<{ message: string; failed: boolean; definitive: boolean }>({ message: 'Reserving your items...', failed: false, definitive: false })
+  const [state, setState] = useState<{ message: string; failed: boolean; definitive: boolean }>({ message: 'Rezervuojamos jūsų prekės…', failed: false, definitive: false })
   useEffect(() => {
     if (!user) return
     const controller = new AbortController()
@@ -25,7 +25,7 @@ export default function Checkout() {
         const current = JSON.parse(getSnapshot())[1] as CartItem[]
         const attempt = checkoutAttempt(user.id, current)
         if (attempt.orderId) { navigate(`/orders/${attempt.orderId}`, { replace: true }); return }
-        if (!attempt.items.length) { setState({ message: 'Your cart is empty.', failed: false, definitive: true }); return }
+        if (!attempt.items.length) { setState({ message: 'Jūsų krepšelis tuščias.', failed: false, definitive: true }); return }
         if (!attempt.tracked) {
           beginPurchase(attempt.key, user.id, attempt.items)
           attempt.tracked = true
@@ -42,9 +42,9 @@ export default function Checkout() {
     })()
     return () => controller.abort()
   }, [user, getSnapshot, run, navigate, retry])
-  return <main className={`${styles.main} ${styles.redesign}`}><h1>Checkout</h1><section className={styles.panel}>
+  return <main className={`${styles.main} ${styles.redesign}`}><h1>Užsakymo įforminimas</h1><section className={styles.panel}>
     <p role={state.failed ? 'alert' : 'status'}>{state.message}</p>
-    {state.failed && <button className={styles.primary} onClick={() => { setState({ message: 'Checking the same checkout request...', failed: false, definitive: false }); setRetry(v => v + 1) }}>Retry checkout</button>}
-    <Link to="/cart" onClick={() => { if (state.definitive && user) sessionStorage.removeItem(checkoutKey(user.id)) }}>Back to cart</Link>
+    {state.failed && <button className={styles.primary} onClick={() => { setState({ message: 'Tikrinama ta pati užsakymo užklausa…', failed: false, definitive: false }); setRetry(v => v + 1) }}>Bandyti įforminti dar kartą</button>}
+    <Link to="/cart" onClick={() => { if (state.definitive && user) sessionStorage.removeItem(checkoutKey(user.id)) }}>Grįžti į krepšelį</Link>
   </section></main>
 }

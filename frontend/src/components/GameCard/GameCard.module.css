@@ -1,15 +1,168 @@
-.card { min-width: 0; overflow: hidden; border: 1px solid #353345; border-radius: 12px; background: #1c1d2c; box-shadow: 0 4px 16px #0002; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
-.link { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; }
-.link > img, .link > div:first-child { transition: filter 160ms ease; }
-.card:hover { border-color: #a78bfa; box-shadow: 0 10px 24px #0005; transform: translateY(-3px); }
-.card:hover .link > img { filter: brightness(1.08); }
-.link:focus-visible { outline: 3px solid #c4b5fd; outline-offset: -3px; }
-.details { display: flex; flex: 1; flex-direction: column; padding: 16px; }
-.name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; height: 2.8em; margin: 0; overflow: hidden; color: #f5f5fa; font-size: 15px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
-.region { height: 1.5em; margin: 10px 0 20px; overflow: hidden; color: #72d9be; font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: .4px; white-space: nowrap; text-overflow: ellipsis; }
-.offers { min-height: 62px; margin-top: auto; padding-top: 14px; border-top: 1px solid #343345; }
-.price { margin: 0; color: #ffe16a; font-size: clamp(20px, 2vw, 26px); line-height: 1.2; font-weight: 750; letter-spacing: -.7px; }
-.offerCount { margin: 7px 0 0; color: #aaa8bf; font-size: 12px; line-height: 1.5; }
-.noOffers { margin: 0; padding-top: 8px; color: #aaa8bf; font-size: 13px; line-height: 1.5; }
-@media (max-width: 600px) { .details { padding: 12px; } .name { font-size: 13px; } .region { margin-bottom: 14px; font-size: 10px; } .offerCount { font-size: 11px; } }
-@media (prefers-reduced-motion: reduce) { .card, .link > img, .link > div:first-child { transition: none; } .card:hover { transform: none; } }
+.card { position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--store-border); border-radius: 4px; }
+.card:hover, .card:focus-within { border-color: var(--store-mint); }
+.coverLink { display: block; flex: 0 0 auto; }
+.panel, .link { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.panel { position: relative; }
+.link { color: inherit; text-decoration: none; }
+.link:focus-visible { outline: 2px solid var(--store-mint); outline-offset: -2px; }
+.coverLink > :first-child { border-bottom: 1px solid var(--store-border); }
+.coverLink > div:first-child { background: var(--store-panel); color: var(--store-muted); text-align: center; padding: 8px; }
+.card:nth-child(even) .coverLink > div:first-child { background: #37274d; }
+.details { display: flex; flex: 1; flex-direction: column; padding: 14px; background: var(--eneba-dark-overlay); }
+.name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-height: 2.7em; margin: 0; overflow: hidden; color: var(--store-text); font-size: 16px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.region { margin: 8px 0 16px; color: var(--store-mint); font-size: 12px; font-weight: 700; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.offers { margin-top: auto; }
+.price { margin: 0; color: var(--store-text); font-size: clamp(18px, 2vw, 27px); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.price span { display: block; margin-bottom: 4px; color: var(--store-muted); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.offerCount, .noOffers { margin: 7px 0 0; color: var(--store-muted); font-size: 12px; line-height: 1.4; }
+@media (max-width: 580px) {
+  .details { padding: 10px; }
+  .name { font-size: 14px; }
+  .region { margin-bottom: 12px; }
+  .offerCount { font-size: 11px; }
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--store-border);
+  background: var(--store-card);
+}
+.actions :is(.primary, .secondary) {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid #fff;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.actions button { width: 100%; padding-inline: 8px; overflow-wrap: anywhere; }
+.actions .primary, .actions button:not(:disabled) { border-color: #ffda00; background: #ffda00; color: #000; }
+.actions .primary:hover, .actions button:not(:disabled):hover { background: #ffe469; }
+.actions .secondary:hover { background: rgb(255 255 255 / .12); }
+.actions a:focus-visible { outline: 2px solid var(--store-yellow); outline-offset: 2px; }
+.actions [role="status"]:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .panel { transition: transform 230ms ease; }
+  .details { transition: background-color 230ms ease; }
+  .actions {
+    position: absolute;
+    inset: 100% 0 auto;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 230ms ease, visibility 0s linear 230ms;
+  }
+  .card:is(:hover, :focus-within) { z-index: 2; }
+  .card:is(:hover, :focus-within) .panel { transform: translateY(calc(-1 * var(--actions-height, 0px))); }
+  .card:is(:hover, :focus-within) .details { background-color: var(--store-card); }
+  .card:is(:hover, :focus-within) .actions {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel, .details, .actions { transition: none; }
+}
+
+
+@media (max-width: 580px) {
+  .card.compact {
+    display: grid;
+    grid-template-columns: clamp(64px, 19vw, 82px) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 8px;
+    border-color: #63e3c2;
+    border-radius: 0;
+    background: #1f0a4d;
+  }
+  .compact .coverLink > :first-child { aspect-ratio: 5 / 7; border: 0; }
+  .compact .coverLink > div:first-child { overflow: hidden; gap: 2px; padding: 4px; }
+  .compact .coverLink svg { width: 24px; height: 24px; }
+  .compact .coverLink span { overflow-wrap: anywhere; font-size: 10px; }
+  .compact:is(:hover, :focus-within) .panel { transform: none; }
+  .compact .details, .compact:is(:hover, :focus-within) .details {
+    padding: 0;
+    background: transparent;
+  }
+  .compact .name { min-height: 0; font-size: 14px; line-height: 1.25; }
+  .compact .region { margin: 4px 0; color: #63e3c2; }
+  .compact .price { color: #fff; font-size: 20px; overflow-wrap: anywhere; }
+  .compact .price span { display: inline; margin-inline-end: 4px; font-size: 11px; }
+  .compact .offerCount, .compact .noOffers { margin: 3px 0 0; }
+  .compact .actions {
+    position: static;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 4px;
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .compact .actions > div { display: contents; }
+  .compact .actions [role="status"]:not(:empty) { grid-area: 2 / 1 / auto / -1; overflow-wrap: anywhere; }
+  .compact .actions :is(a, button) { min-height: 44px; padding: 4px; font-size: 12px; line-height: 1.25; }
+  .compact .actions :is(a, button):focus-visible { outline-offset: -2px; }
+  .compact .actions .primary, .compact .actions button:not(:disabled) { border-color: #fad318; background: #fad318; }
+  .compact .actions .primary:hover, .compact .actions button:not(:disabled):hover { background: #ffe469; }
+}
+
+@media (min-width: 1101px) {
+  .card.compact {
+    border-color: #63e3c2;
+    border-radius: 0;
+    background: #1f0a4d;
+  }
+
+  .card.compact:is(:hover, :focus-within) { border-color: #fff; }
+  .compact .coverLink > :first-child {
+    aspect-ratio: 5 / 7;
+    object-fit: contain;
+    border: 0;
+    background: #351183;
+  }
+
+  .compact .details, .compact:is(:hover, :focus-within) .details {
+    padding: 12px;
+    background: #1f0a4d;
+  }
+
+  .compact .name { min-height: 2.6em; font-size: 14px; line-height: 1.3; }
+  .compact .region { margin: 6px 0 8px; color: #63e3c2; }
+  .compact .price { color: #fff; font-size: 22px; letter-spacing: -.02em; }
+  .compact .price span { margin-bottom: 2px; font-size: 11px; }
+  .compact .offerCount, .compact .noOffers { margin-top: 4px; font-size: 11px; }
+
+  .compact .actions {
+    gap: 6px;
+    padding: 8px 12px 12px;
+    border-color: #7950ca;
+    background: #1f0a4d;
+  }
+
+  .compact .actions :is(a, button) { min-height: 38px; padding: 6px 8px; font-size: 13px; }
+  .compact .actions :is(a, button):focus-visible { outline-offset: -3px; }
+  .compact .actions .primary, .compact .actions button:not(:disabled) { border-color: #fad318; background: #fad318; }
+  .compact .actions .primary:hover, .compact .actions button:not(:disabled):hover { background: #ffe469; }
+}

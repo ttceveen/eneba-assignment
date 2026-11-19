@@ -20,6 +20,7 @@ class DigitalKeyTest extends TestCase
     private function offer(): Offer
     {
         return Offer::create([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Seller fixture'])->id,
             'game_id' => Game::create(['name' => 'Game fixture', 'location' => ['GLOBAL']])->id,
             'price' => '9.99', 'quantity' => 7,

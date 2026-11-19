@@ -82,7 +82,7 @@ class CheckoutServiceTest extends TestCase
 
     private function offer(int $stock = 3, string $price = '12.34'): Offer
     {
-        $offer = Offer::create(['seller_id' => Seller::create(['name' => 'Checkout fixture'])->id,
+        $offer = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Checkout fixture'])->id,
             'game_id' => Game::create(['name' => 'Checkout fixture', 'location' => ['GLOBAL']])->id,
             'price' => $price, 'quantity' => $stock]);
         foreach (range(1, max(1, $stock)) as $n) {

@@ -12,6 +12,7 @@ class OfferResource extends JsonResource
         return [
             'id' => $this->id,
             'seller' => ['id' => $this->seller->id, 'name' => $this->seller->name],
+            'platform' => $this->platform,
             'price' => $this->price,
             'quantity' => (int) $this->quantity,
         ];

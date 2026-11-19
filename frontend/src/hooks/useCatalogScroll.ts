@@ -20,6 +20,11 @@ function readPosition(key: string, url: string): CatalogPosition | null {
   return null
 }
 
+function cardAnchor(card: HTMLElement): string | undefined {
+  const section = card.closest<HTMLElement>('[data-catalog-section]')?.dataset.catalogSection
+  return section ? `${section}:${card.dataset.gameId}` : card.dataset.gameId
+}
+
 export function useCatalogScroll(loaded: boolean) {
   const location = useLocation()
   const navigation = useNavigationType()
@@ -45,9 +50,9 @@ export function useCatalogScroll(loaded: boolean) {
       return box.bottom > 0 && box.top < innerHeight
     }
     const anchor = clickedCard
-      ?? cards.find((card) => card.dataset.gameId === anchorId.current && visible(card))
+      ?? cards.find((card) => cardAnchor(card) === anchorId.current && visible(card))
       ?? cards.find(visible)
-    anchorId.current = anchor?.dataset.gameId ?? null
+    anchorId.current = (anchor && cardAnchor(anchor)) ?? null
     const position: CatalogPosition = {
       url, y: scrollY, mainHeight: main.getBoundingClientRect().height,
       anchorId: anchorId.current, anchorOffset: anchor?.getBoundingClientRect().top ?? 0,
@@ -66,7 +71,7 @@ export function useCatalogScroll(loaded: boolean) {
     // Remove the loading-height reservation before measuring the final grid.
     main.style.minHeight = ''
     const anchor = [...main.querySelectorAll<HTMLElement>('[data-game-id]')]
-      .find((card) => card.dataset.gameId === target.anchorId)
+      .find((card) => cardAnchor(card) === target.anchorId)
     const y = anchor ? scrollY + anchor.getBoundingClientRect().top - target.anchorOffset : target.y
     const maximum = Math.max(0, document.documentElement.scrollHeight - innerHeight)
     window.scrollTo({ top: Math.max(0, Math.min(y, maximum)), left: 0, behavior: 'instant' })

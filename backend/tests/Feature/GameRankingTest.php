@@ -51,4 +51,17 @@ class GameRankingTest extends TestCase
         $this->getJson('/api/games/'.$game->id)->assertNotFound()->assertJsonMissingPath('data');
         $this->getJson('/api/games')->assertOk()->assertJsonPath('data', [])->assertJsonPath('meta.total', 0);
     }
+
+    public function test_missing_popularity_is_sorted_as_zero_with_game_id_ties(): void
+    {
+        $missing = Game::create(['name' => 'Missing counter', 'location' => ['GLOBAL']]);
+        $zero = Game::create(['name' => 'Zero counter', 'location' => ['GLOBAL']]);
+        $popular = Game::create(['name' => 'Popular', 'location' => ['GLOBAL']]);
+        $missing->popularity()->delete();
+        $popular->popularity()->update(['purchase_count' => 1]);
+
+        $result = $this->getJson('/api/games')->assertOk()->assertJsonPath('meta.total', 3);
+        $this->assertSame([$popular->id, $missing->id, $zero->id], array_column($result->json('data'), 'id'));
+        $this->assertArrayNotHasKey('purchase_count', $result->json('data.0'));
+    }
 }

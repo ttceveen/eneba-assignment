@@ -20,6 +20,7 @@ use App\Services\PaymentService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
@@ -118,7 +119,7 @@ class PaymentServiceTest extends TestCase
         $this->assertSame(0, DB::table('game_popularities')->sum('purchase_count'));
     }
 
-    public function test_success_sells_exact_assigned_keys_without_changing_counter(): void
+    public function test_success_sells_exact_assigned_keys_and_increments_popularity(): void
     {
         [$user, $offer, $order] = $this->order();
         $ids = $order->items->sole()->digitalKeys()->orderBy('id')->pluck('id')->all();
@@ -164,7 +165,7 @@ class PaymentServiceTest extends TestCase
     {
         [$user, $first, $unused] = $this->order(1);
         app(CheckoutService::class)->cancel($user, $unused->id);
-        $second = Offer::create(['seller_id' => Seller::create(['name' => 'Another fixture seller'])->id,
+        $second = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Another fixture seller'])->id,
             'game_id' => $first->game_id, 'price' => '2.00', 'quantity' => 2]);
         foreach (range(1, 2) as $n) {
             $second->digitalKeys()->create(['key_value' => 'PAYMENT-SECOND-'.$second->id.'-'.$n]);
@@ -280,21 +281,16 @@ class PaymentServiceTest extends TestCase
         }
     }
 
-    public function test_completion_error_rolls_back_keys_order_payment_and_statistics(): void
+    public function test_first_sale_creates_the_missing_popularity_row(): void
     {
-        [$user, $offer, $order] = $this->order();
-        $payment = $this->payment($user, $order);
+        [$user, $offer, $order] = $this->order(1);
         DB::table('game_popularities')->where('game_id', $offer->game_id)->delete();
-        try {
-            $this->service()->simulate($user, $payment->id, 'success');
-            $this->fail('Broken completion succeeded.');
-        } catch (CheckoutConflictException) {
-            $this->assertSame('pending', $payment->fresh()->status);
-            $this->assertSame('pending_payment', $order->fresh()->status);
-            $this->assertSame(2, DigitalKey::where('status', 'reserved')->count());
-            $this->assertSame(0, DigitalKey::where('status', 'sold')->count());
-            $this->assertSame(1, $offer->fresh()->quantity);
-        }
+        $payment = $this->payment($user, $order);
+
+        $this->assertSame('succeeded', $this->service()->simulate($user, $payment->id, 'success')->status);
+        $this->assertSame('paid', $order->fresh()->status);
+        $this->assertSame(1, (int) DB::table('game_popularities')->where('game_id', $offer->game_id)->value('purchase_count'));
+        $this->assertSame(1, DigitalKey::where('status', 'sold')->count());
     }
 
     public function test_expiration_during_statistics_write_rolls_back_sale_before_release(): void
@@ -307,7 +303,7 @@ class PaymentServiceTest extends TestCase
         $deadline = $order->reserved_until->copy()->addSecond();
         $connection->getEventDispatcher()->listen(QueryExecuted::class,
             function ($event) use ($deadline): void {
-                if (str_starts_with($event->sql, 'update') && str_contains($event->sql, 'game_popularities')) {
+                if (str_contains($event->sql, 'INSERT INTO game_popularities')) {
                     Carbon::setTestNow($deadline);
                 }
             });
@@ -466,6 +462,42 @@ class PaymentServiceTest extends TestCase
         $this->assertSame(2, DigitalKey::where('status', 'sold')->count());
         $this->assertSame(2, (int) DB::table('game_popularities')->sum('purchase_count'));
         $this->assertSame(1, $offer->fresh()->quantity);
+    }
+
+    public function test_concurrent_distinct_orders_add_units_to_the_same_missing_counter(): void
+    {
+        [$user, $offer, $firstOrder] = $this->order(1);
+        $secondOrder = app(CheckoutService::class)->create($user, [['offer_id' => $offer->id, 'quantity' => 2]], 'second-order');
+        $firstPayment = $this->payment($user, $firstOrder);
+        $secondPayment = $this->payment($user, $secondOrder);
+        DB::table('game_popularities')->where('game_id', $offer->game_id)->delete();
+
+        $results = $this->race('simulate', $user, ['id' => $firstPayment->id], 'simulate', $user, ['id' => $secondPayment->id], 'offers', $offer->id);
+        $this->assertSame([200, 200], array_column($results, 'status'));
+        $this->assertSame(2, Order::where('status', 'paid')->count());
+        $this->assertSame(3, (int) DB::table('game_popularities')->where('game_id', $offer->game_id)->value('purchase_count'));
+        $this->assertSame(3, DigitalKey::where('status', 'sold')->count());
+    }
+
+    public function test_one_order_updates_each_games_counter_and_changes_the_catalog_order(): void
+    {
+        [$user, $firstOffer, $unused] = $this->order(1);
+        app(CheckoutService::class)->cancel($user, $unused->id);
+        $secondOffer = $this->offer();
+        $ids = [$firstOffer->game_id, $secondOffer->game_id];
+        [$code, $body, $headers] = $this->api('GET', '/api/games');
+        $this->assertSame(200, $code);
+        $this->assertStringContainsString('no-cache', $headers['cache-control'][0]);
+        $this->assertSame($ids, array_column($body['data'], 'id'));
+
+        $order = app(CheckoutService::class)->create($user, [
+            ['offer_id' => $firstOffer->id, 'quantity' => 1], ['offer_id' => $secondOffer->id, 'quantity' => 2],
+        ], 'two-games');
+        $payment = $this->payment($user, $order);
+        $this->assertSame('succeeded', $this->service()->simulate($user, $payment->id, 'success')->status);
+
+        $this->assertSame([1, 2], DB::table('game_popularities')->orderBy('game_id')->pluck('purchase_count')->all());
+        $this->assertSame(array_reverse($ids), array_column($this->api('GET', '/api/games')[1]['data'], 'id'));
     }
 
     public function test_concurrent_creations_cannot_make_two_active_payments(): void
@@ -691,12 +723,13 @@ class PaymentServiceTest extends TestCase
         $payment = $order->payments()->create(['provider' => 'paypal', 'status' => 'pending', 'amount' => $order->total_amount,
             'currency' => 'EUR', 'external_id' => 'ORDER123']);
         $payment->forceFill(['confirmation_started_at' => now()])->save();
-        DB::table('game_popularities')->where('game_id', $offer->game_id)->delete();
+        DB::table('game_popularities')->where('game_id', $offer->game_id)->update(['purchase_count' => PHP_INT_MAX]);
         Carbon::setTestNow($order->reserved_until->copy()->addSecond());
         try {
             $this->service()->applyResult($payment->id, new PaymentResult('succeeded', 'ORDER123'));
             $this->fail('Broken completion succeeded.');
-        } catch (CheckoutConflictException) {
+        } catch (QueryException $exception) {
+            $this->assertSame('22003', $exception->getCode());
             $this->assertSame('pending', $payment->fresh()->status);
             $this->assertSame('pending_payment', $order->fresh()->status);
             $this->assertSame(2, DigitalKey::where('status', 'reserved')->count());
@@ -782,17 +815,18 @@ class PaymentServiceTest extends TestCase
 
             return Http::response($this->confirmationDetails('COMPLETED', 'COMPLETED'));
         });
-        DB::table('game_popularities')->where('game_id', $offer->game_id)->delete();
+        DB::table('game_popularities')->where('game_id', $offer->game_id)->update(['purchase_count' => PHP_INT_MAX]);
         try {
             $this->service()->confirm($user, $payment->external_id);
-            $this->fail('Completion with missing statistics succeeded.');
-        } catch (CheckoutConflictException) {
+            $this->fail('Completion with an overflowing counter succeeded.');
+        } catch (QueryException $exception) {
+            $this->assertSame('22003', $exception->getCode());
             $this->assertSame('pending', $payment->fresh()->status);
             $this->assertSame('CAPTURE123', $payment->fresh()->capture_id);
             $this->assertSame(2, DigitalKey::where('status', 'reserved')->count());
             $this->assertSame(0, DigitalKey::where('status', 'sold')->count());
         }
-        DB::table('game_popularities')->insert(['game_id' => $offer->game_id, 'purchase_count' => 0]);
+        DB::table('game_popularities')->where('game_id', $offer->game_id)->update(['purchase_count' => 0]);
         Carbon::setTestNow($order->reserved_until->copy()->addSecond());
         $this->assertSame('succeeded', $this->service()->confirm($user, $payment->external_id)->status);
         $this->assertSame(1, $captures);
@@ -1225,7 +1259,7 @@ class PaymentServiceTest extends TestCase
 
     private function offer(int $stock = 3, string $price = '12.34'): Offer
     {
-        $offer = Offer::create(['seller_id' => Seller::create(['name' => 'Checkout fixture'])->id,
+        $offer = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Checkout fixture'])->id,
             'game_id' => Game::create(['name' => 'Checkout fixture', 'location' => ['GLOBAL']])->id,
             'price' => $price, 'quantity' => $stock]);
         foreach (range(1, max(1, $stock)) as $n) {

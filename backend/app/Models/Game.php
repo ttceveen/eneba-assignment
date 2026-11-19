@@ -57,10 +57,12 @@ class Game extends Model
             ->whereHas('seller', fn (Builder $seller) => $seller->where('is_active', true));
     }
 
-    public function scopeWithOfferSummary(Builder $query): Builder
+    public function scopeWithOfferSummary(Builder $query, ?\Closure $matchingOffers = null): Builder
     {
-        return $query->withMin('availableOffers as min_price', 'price')
-            ->withCount('availableOffers as offers_count')
+        $matchingOffers ??= static function (): void {};
+
+        return $query->withMin(['availableOffers as min_price' => $matchingOffers], 'price')
+            ->withCount(['availableOffers as offers_count' => $matchingOffers])
             ->withCasts(['min_price' => 'decimal:2']);
     }
 }

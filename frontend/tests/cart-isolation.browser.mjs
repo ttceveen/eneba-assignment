@@ -63,33 +63,33 @@ async function setup(t, options = {}) {
   return { page, context, state, calls }
 }
 const stored = page => page.evaluate(() => ({ cart: localStorage.getItem('eneba:cart'), owner: localStorage.getItem('eneba:cart-owner') }))
-const badge = (page, count) => page.getByRole('link', { name: `Shopping cart, ${count} ${count === 1 ? 'item' : 'items'}`, exact: true }).waitFor()
+const badge = (page, count) => page.getByRole('link', { name: `Pirkinių krepšelis. Prekių: ${count}`, exact: true }).waitFor()
 async function ready(page) {
-  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
-  await page.getByLabel('Cart total', { exact: true }).filter({ hasText: '€' }).waitFor()
+  await page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
+  await page.getByLabel('Krepšelio suma', { exact: true }).filter({ hasText: '€' }).waitFor()
 }
 const focus = page => page.evaluate(() => dispatchEvent(new Event('focus')))
 
 async function logout(page) {
-  await page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await page.getByRole('link', { name: 'Log in', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await page.getByRole('link', { name: 'Prisijungti', exact: true }).waitFor()
   await badge(page, 0)
 }
 
 test('add item, Logout and reload clear React cart, storage and local add feedback', async t => {
   const { page } = await setup(t, { cart: [] })
   await page.goto(base + '/games/1')
-  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Add to cart', exact: true }).click()
-  await page.getByText('Added to cart.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Į krepšelį', exact: true }).click()
+  await page.getByText('Pridėta į krepšelį.', { exact: true }).waitFor()
   await badge(page, 1)
   await logout(page)
   assert.deepEqual(await stored(page), { cart: null, owner: null })
-  assert.equal(await page.getByText('Added to cart.', { exact: true }).count(), 0)
+  assert.equal(await page.getByText('Pridėta į krepšelį.', { exact: true }).count(), 0)
   await page.goto(base + '/cart')
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   await page.reload()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   assert.deepEqual(await stored(page), { cart: null, owner: null })
 })
 
@@ -98,27 +98,27 @@ test('confirmed A to B change clears cart and stock notices before showing B', a
   state.stock = 2
   await page.goto(base + '/cart')
   await ready(page)
-  await page.getByRole('status').filter({ hasText: 'Quantity updated from 3 to 2.' }).waitFor()
+  await page.getByRole('status').filter({ hasText: 'Kiekis pakeistas iš 3 į 2.' }).waitFor()
   await page.evaluate(() => {
     window.foreignCartFlashes = []
     new MutationObserver(() => {
-      if (document.querySelector('[aria-label="Order history"]')?.textContent.includes('Bob') && document.querySelector('[data-offer-id]')) window.foreignCartFlashes.push(true)
+      if (document.querySelector('[aria-label="Užsakymų istorija"]')?.textContent.includes('Bob') && document.querySelector('[data-offer-id]')) window.foreignCartFlashes.push(true)
     }).observe(document.body, { childList: true, subtree: true, characterData: true })
   })
   state.user = userB
   await focus(page)
-  await page.getByRole('link', { name: 'Order history', exact: true }).filter({ hasText: 'Bob' }).waitFor()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('link', { name: 'Užsakymų istorija', exact: true }).filter({ hasText: 'Bob' }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   assert.deepEqual(await stored(page), { cart: null, owner: '2' })
-  assert.equal(await page.getByRole('status').filter({ hasText: 'Available stock changed.' }).count(), 0)
+  assert.equal(await page.getByRole('status').filter({ hasText: 'Pasikeitė turimas kiekis.' }).count(), 0)
   assert.deepEqual(await page.evaluate(() => window.foreignCartFlashes), [])
 })
 
 test('stored owner protects A cart when reload restores a different user B', async t => {
   const { page } = await setup(t, { user: userB })
   await page.goto(base + '/cart')
-  await page.getByRole('link', { name: 'Order history', exact: true }).filter({ hasText: 'Bob' }).waitFor()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('link', { name: 'Užsakymų istorija', exact: true }).filter({ hasText: 'Bob' }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   assert.deepEqual(await stored(page), { cart: null, owner: '2' })
 })
 
@@ -132,7 +132,7 @@ test('A reload and restoration of the same stable ID preserve the cart', async t
   await ready(page)
   await badge(page, 3)
   assert.deepEqual(await stored(page), before)
-  await page.getByRole('link', { name: 'Order history', exact: true }).filter({ hasText: 'Renamed' }).waitFor()
+  await page.getByRole('link', { name: 'Užsakymų istorija', exact: true }).filter({ hasText: 'Renamed' }).waitFor()
 })
 
 test('initial auth loading and protected-route revalidation never clear the cart', async t => {
@@ -141,7 +141,7 @@ test('initial auth loading and protected-route revalidation never clear the cart
   state.meHold = new Promise(resolve => { release = resolve })
   t.after(() => release())
   await page.goto(base + '/cart')
-  await page.getByRole('link', { name: 'Log in', exact: true }).filter({ hasText: 'Checking...' }).waitFor()
+  await page.getByRole('link', { name: 'Prisijungti', exact: true }).filter({ hasText: 'Tikrinama…' }).waitFor()
   await badge(page, 3)
   assert.deepEqual(JSON.parse((await stored(page)).cart), [{ offerId: 1, quantity: 3 }])
   release()
@@ -149,34 +149,34 @@ test('initial auth loading and protected-route revalidation never clear the cart
   let finish
   state.meHold = new Promise(resolve => { finish = resolve })
   t.after(() => finish())
-  await page.getByRole('link', { name: 'Order history', exact: true }).click()
-  await page.getByRole('status').filter({ hasText: 'Checking your account...' }).waitFor()
+  await page.getByRole('link', { name: 'Užsakymų istorija', exact: true }).click()
+  await page.getByRole('status').filter({ hasText: 'Tikrinama paskyra…' }).waitFor()
   await badge(page, 3)
   finish()
-  await page.getByRole('heading', { name: 'Order history', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Užsakymų istorija', exact: true }).waitFor()
   assert.deepEqual(JSON.parse((await stored(page)).cart), [{ offerId: 1, quantity: 3 }])
 })
 
 test('temporary auth error and recovery keep the same user cart', async t => {
   const { page, state } = await setup(t, { meError: true })
   await page.goto(base + '/cart')
-  await page.getByLabel('Cart total', { exact: true }).filter({ hasText: '€' }).waitFor()
+  await page.getByLabel('Krepšelio suma', { exact: true }).filter({ hasText: '€' }).waitFor()
   await badge(page, 3)
   const before = await stored(page)
   state.meError = false
   await focus(page)
-  await page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
   assert.deepEqual(await stored(page), before)
 })
 
 test('temporary offers API failure preserves cart and can be retried', async t => {
   const { page, state } = await setup(t, { offersError: true })
   await page.goto(base + '/cart')
-  await page.getByRole('alert').filter({ hasText: 'Failed to load cart offers.' }).waitFor()
+  await page.getByRole('alert').filter({ hasText: 'Nepavyko įkelti krepšelio pasiūlymų.' }).waitFor()
   await badge(page, 3)
   const before = await stored(page)
   state.offersError = false
-  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await page.getByRole('button', { name: 'Bandyti dar kartą', exact: true }).click()
   await ready(page)
   assert.deepEqual(await stored(page), before)
 })
@@ -184,15 +184,15 @@ test('temporary offers API failure preserves cart and can be retried', async t =
 test('PayPal external approval and cancelled/pending return preserve cart for the same user', async t => {
   const { page, calls } = await setup(t)
   await page.goto(base + '/orders/1')
-  await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Tęsti „PayPal“', exact: true }).waitFor()
   const before = await stored(page)
-  await page.getByRole('button', { name: 'Continue in PayPal', exact: true }).click()
+  await page.getByRole('button', { name: 'Tęsti „PayPal“', exact: true }).click()
   await page.waitForURL(approval)
   await page.goto(base + '/paypal/return?cancelled=1&token=ORDER123')
-  await page.getByRole('heading', { name: 'PayPal checkout interrupted', exact: true }).waitFor()
+  await page.getByRole('heading', { name: '„PayPal“ mokėjimas nutrauktas', exact: true }).waitFor()
   assert.deepEqual(await stored(page), before)
   await page.goto(base + '/paypal/return?token=ORDER123')
-  await page.getByRole('status').filter({ hasText: 'PayPal has not confirmed payment yet.' }).waitFor()
+  await page.getByRole('status').filter({ hasText: '„PayPal“ dar nepatvirtino mokėjimo.' }).waitFor()
   assert.deepEqual(await stored(page), before)
   assert.equal(calls.filter(call => call.path === '/api/payments/paypal/confirm').length, 1)
   assert.equal(calls.some(call => call.path.endsWith('/payments')), false)
@@ -206,15 +206,15 @@ test('old cart response after Logout cannot restore items or notices', async t =
   state.stock = 1
   state.offersHold = new Promise(resolve => { release = resolve })
   t.after(() => release())
-  await page.getByRole('button', { name: 'Refresh prices', exact: true }).click()
-  await page.getByRole('status').filter({ hasText: 'Loading cart offers...' }).waitFor()
+  await page.getByRole('button', { name: 'Atnaujinti kainas', exact: true }).click()
+  await page.getByRole('status').filter({ hasText: 'Įkeliami krepšelio pasiūlymai…' }).waitFor()
   await logout(page)
   release()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   assert.deepEqual(await stored(page), { cart: null, owner: null })
-  assert.equal(await page.getByRole('status').filter({ hasText: 'Available stock changed.' }).count(), 0)
+  assert.equal(await page.getByRole('status').filter({ hasText: 'Pasikeitė turimas kiekis.' }).count(), 0)
   await page.reload()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
 })
 
 test('old successful auth response after Logout cannot restore cart ownership', async t => {
@@ -227,9 +227,9 @@ test('old successful auth response after Logout cannot restore cart ownership', 
   await focus(page)
   await logout(page)
   release()
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   assert.deepEqual(await stored(page), { cart: null, owner: null })
-  assert.equal(await page.getByRole('button', { name: 'Log out', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: 'Atsijungti', exact: true }).count(), 0)
 })
 
 test('failed Logout keeps cart; successful retry clears it', async t => {
@@ -237,8 +237,8 @@ test('failed Logout keeps cart; successful retry clears it', async t => {
   await page.goto(base + '/cart')
   await ready(page)
   const before = await stored(page)
-  await page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await page.getByRole('alert').filter({ hasText: 'Logout failed. Try again.' }).waitFor()
+  await page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti. Bandykite dar kartą.' }).waitFor()
   await badge(page, 3)
   assert.deepEqual(await stored(page), before)
   state.logoutError = false
@@ -252,12 +252,12 @@ test('a tab cannot adopt or overwrite a different cart owner through storage syn
   await ready(page)
   const other = await context.newPage()
   await other.goto(base + '/')
-  await other.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+  await other.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
   await other.evaluate(() => {
     localStorage.setItem('eneba:cart-owner', '2')
     localStorage.setItem('eneba:cart', JSON.stringify([{ offerId: 2, quantity: 1 }]))
   })
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   await badge(page, 0)
   assert.deepEqual(await stored(page), { cart: '[{"offerId":2,"quantity":1}]', owner: '2' })
 })

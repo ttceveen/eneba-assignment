@@ -108,41 +108,41 @@ export default function PaymentPage() {
   const latest = order?.payments[0]
   const saved = user ? readSession<PaymentAttempt>(paymentKey(user.id, id)) : null
   const savedPending = latest?.status === 'pending' && latest.idempotency_key === saved?.key
-  return <main className={`${styles.main} ${styles.redesign}`}><h1>Payment</h1>
+  return <main className={`${styles.main} ${styles.redesign}`}><h1>Mokėjimas</h1>
     {message && <p role="alert" className={styles.notice}>{message}</p>}
-    {!order ? <section className={styles.panel}><p role="status">{busy ? 'Loading order...' : 'Order could not be loaded.'}</p><button onClick={() => void load()} disabled={busy}>Refresh order</button></section> : <div className={styles.paymentLayout}>
+    {!order ? <section className={styles.panel}><p role="status">{busy ? 'Įkeliamas užsakymas…' : 'Nepavyko įkelti užsakymo.'}</p><button onClick={() => void load()} disabled={busy}>Atnaujinti užsakymą</button></section> : <div className={styles.paymentLayout}>
       <section className={`${styles.panel} ${styles.paymentPanel}`}>
-        <p className={styles.mobileTotal}>Total <strong>{formatCents(priceInCents(order.total_amount))} {order.currency}</strong></p>
+        <p className={styles.mobileTotal}>Iš viso <strong>{formatCents(priceInCents(order.total_amount))} {order.currency}</strong></p>
         {order.status === 'pending_payment' ? <>
           <div className={styles.paymentMeta}>
-          {remaining > 0 ? <p role="timer" aria-live="off">Reservation remaining: <strong>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</strong></p>
-            : <p role="status">{busy ? 'Refreshing order status...' : uncertain ? 'The initial reservation deadline has passed. The current order status could not be loaded. Refresh the order before continuing.' : 'The initial reservation deadline has passed. The server still reports this order as awaiting payment.'}</p>}
-          <p>This is a demo. No real money is charged. Do not enter bank card details.</p>
-          {latest?.status === 'failed' && <p role="alert">Payment failed. Your reservation has not been extended. You can try again.</p>}
-          {method === 'paypal' && <p>{pendingPayPal?.external_id ? 'Confirm PayPal payment may complete the payment you approved in PayPal. Continue in PayPal opens the existing Sandbox checkout.' : 'You will be redirected to PayPal Sandbox to approve payment. No real money is charged.'}</p>}
+          {remaining > 0 ? <p role="timer" aria-live="off">Rezervacija galioja dar: <strong>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</strong></p>
+            : <p role="status">{busy ? 'Atnaujinama užsakymo būsena…' : uncertain ? 'Pradinis rezervacijos terminas baigėsi. Nepavyko gauti dabartinės užsakymo būsenos. Prieš tęsdami atnaujinkite užsakymą.' : 'Pradinis rezervacijos terminas baigėsi. Pagal serverio duomenis užsakymas vis dar laukia mokėjimo.'}</p>}
+          <p>Tai demonstracinis mokėjimas. Pinigai nenuskaičiuojami. Neveskite banko kortelės duomenų.</p>
+          {latest?.status === 'failed' && <p role="alert">Mokėjimas nepavyko. Rezervacija nepratęsta. Galite bandyti dar kartą.</p>}
+          {method === 'paypal' && <p>{pendingPayPal?.external_id ? 'Patvirtinę galite užbaigti mokėjimą, kuriam pritarėte „PayPal“. Tęsdami „PayPal“ atidarysite pradėtą mokėjimą bandomojoje aplinkoje.' : 'Būsite nukreipti į „PayPal Sandbox“ patvirtinti mokėjimo. Pinigai nenuskaičiuojami.'}</p>}
           </div>
-          <fieldset className={styles.methods} disabled={busy || uncertain || Boolean(pendingPayment)}><legend>Payment method</legend>
+          <fieldset className={styles.methods} disabled={busy || uncertain || Boolean(pendingPayment)}><legend>Mokėjimo būdas</legend>
             <label><input type="radio" name="provider" checked={method === 'fake_card'} onChange={() => setProvider('fake_card')} /> Fake Card</label>
             <label><input type="radio" name="provider" checked={method === 'paypal'} onChange={() => setProvider('paypal')} /> PayPal Sandbox</label>
           </fieldset>
-          {pendingPayment && <p>Payment method is locked for the current payment attempt.</p>}
-          {method === 'fake_card' && <fieldset className={styles.demoResult} disabled={busy || remaining <= 0 || uncertain || savedPending}><legend>Demo payment result</legend>
-            <label><input type="radio" name="result" checked={desired === 'success'} onChange={() => setDesired('success')} /> Successful payment</label>
-            <label><input type="radio" name="result" checked={desired === 'failure'} onChange={() => setDesired('failure')} /> Failed payment</label>
+          {pendingPayment && <p>Kol vyksta šis mokėjimo bandymas, mokėjimo būdo pakeisti negalima.</p>}
+          {method === 'fake_card' && <fieldset className={styles.demoResult} disabled={busy || remaining <= 0 || uncertain || savedPending}><legend>Bandomojo mokėjimo rezultatas</legend>
+            <label><input type="radio" name="result" checked={desired === 'success'} onChange={() => setDesired('success')} /> Sėkmingas mokėjimas</label>
+            <label><input type="radio" name="result" checked={desired === 'failure'} onChange={() => setDesired('failure')} /> Nesėkmingas mokėjimas</label>
           </fieldset>}
-          {savedPending && method === 'fake_card' && <p className={styles.savedDemo}>The saved demo result will be retried for this pending attempt.</p>}
-          <button className={`${styles.primary} ${styles.payButton}`} disabled={busy || (remaining <= 0 && !pendingPayPal?.external_id) || uncertain} onClick={() => void pay()}>{busy ? 'Please wait...' : method === 'paypal' ? pendingPayPal?.external_id ? 'Confirm PayPal payment' : 'Pay with PayPal Sandbox' : latest?.status === 'failed' ? 'Try payment again' : latest?.status === 'pending' ? 'Continue demo payment' : 'Pay with demo card'}</button>
+          {savedPending && method === 'fake_card' && <p className={styles.savedDemo}>Kartojant šį mokėjimo bandymą bus naudojamas išsaugotas bandomojo mokėjimo rezultatas.</p>}
+          <button className={`${styles.primary} ${styles.payButton}`} disabled={busy || (remaining <= 0 && !pendingPayPal?.external_id) || uncertain} onClick={() => void pay()}>{busy ? 'Palaukite…' : method === 'paypal' ? pendingPayPal?.external_id ? 'Patvirtinti „PayPal“ mokėjimą' : 'Mokėti per „PayPal Sandbox“' : latest?.status === 'failed' ? 'Bandyti mokėti dar kartą' : latest?.status === 'pending' ? 'Tęsti bandomąjį mokėjimą' : 'Mokėti bandomąja kortele'}</button>
           {pendingPayPal?.redirect_url && <button disabled={busy || uncertain} onClick={() => {
             try { window.location.assign(payPalApprovalUrl(pendingPayPal.redirect_url)) }
             catch (error) { setMessage(checkoutMessage(error, 'redirect')) }
-          }}>Continue in PayPal</button>}
-          <button disabled={busy} onClick={() => void cancel()}>Cancel order</button>
-        </> : <p role="status">{order.status === 'expired' ? 'Your reservation has expired. Return to your cart to check availability.' : order.status === 'cancelled' ? 'This order has been cancelled.' : 'Payment confirmed.'}</p>}
-        <button disabled={busy} onClick={() => void load()}>{uncertain ? 'Check payment status' : 'Refresh order'}</button>
-        <Link to="/cart" onClick={() => { if (user && order.status !== 'pending_payment' && readSession<CheckoutAttempt>(checkoutKey(user.id))?.orderId === id) sessionStorage.removeItem(checkoutKey(user.id)) }}>Back to cart</Link>
+          }}>Tęsti „PayPal“</button>}
+          <button disabled={busy} onClick={() => void cancel()}>Atšaukti užsakymą</button>
+        </> : <p role="status">{order.status === 'expired' ? 'Rezervacijos laikas baigėsi. Grįžkite į krepšelį ir patikrinkite turimą kiekį.' : order.status === 'cancelled' ? 'Šis užsakymas atšauktas.' : 'Mokėjimas patvirtintas.'}</p>}
+        <button disabled={busy} onClick={() => void load()}>{uncertain ? 'Patikrinti mokėjimo būseną' : 'Atnaujinti užsakymą'}</button>
+        <Link to="/cart" onClick={() => { if (user && order.status !== 'pending_payment' && readSession<CheckoutAttempt>(checkoutKey(user.id))?.orderId === id) sessionStorage.removeItem(checkoutKey(user.id)) }}>Grįžti į krepšelį</Link>
       </section>
       <div className={styles.orderSummary} data-expanded={detailsExpanded}>
-        <button className={styles.detailsToggle} type="button" aria-expanded={detailsExpanded} aria-controls={`order-details-${id}`} onClick={() => setDetailsExpanded(value => !value)}>Order details <span aria-hidden="true">{detailsExpanded ? '−' : '+'}</span></button>
+        <button className={styles.detailsToggle} type="button" aria-expanded={detailsExpanded} aria-controls={`order-details-${id}`} onClick={() => setDetailsExpanded(value => !value)}>Užsakymo informacija <span aria-hidden="true">{detailsExpanded ? '−' : '+'}</span></button>
         <div className={styles.orderContent} id={`order-details-${id}`}><Summary order={order} /></div>
       </div>
     </div>}

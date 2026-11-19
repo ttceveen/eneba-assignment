@@ -31,6 +31,8 @@ class OfferSeeder extends Seeder
                         ], [
                             'price' => sprintf('%d.%02d', intdiv($cents, 100), $cents % 100),
                             'quantity' => 3 + $index,
+                            // Rotate demo platforms and leave one out per game.
+                            'platform' => Offer::PLATFORMS[($game->id + $index % 3) % 4],
                             'is_active' => true,
                         ]);
                     }

@@ -42,21 +42,21 @@ export const simulatePayment = (token: string, id: number, result: 'success' | '
 export const getOrderKeys = (token: string, id: number, signal: AbortSignal) => request<OrderKeys>(token, `/orders/${id}/keys`, signal).then(checkedKeys)
 export function checkoutMessage(error: unknown, context: 'create-order' | 'start-payment' | 'confirm' | 'load-order' | 'load-keys' | 'cancel' | 'redirect' = 'confirm'): string {
   const message = {
-    'create-order': 'Unable to create your order. Retry checkout using the same request, or return to your cart.',
-    'start-payment': 'Unable to start payment. The attempt may already exist. Refresh the order before continuing.',
-    confirm: 'The payment confirmation result is unknown. Refresh the order before retrying the same payment. Do not start another payment.',
-    'load-order': 'Unable to load your order. Refresh the order to see its current payment status.',
-    'load-keys': 'Your payment is confirmed, but your digital keys could not be loaded. Retry loading keys; do not pay again.',
-    cancel: 'Unable to confirm cancellation. Refresh the order before taking another action.',
-    redirect: 'Unable to open the PayPal Sandbox approval link. Refresh the order before continuing.',
+    'create-order': 'Nepavyko sukurti užsakymo. Pakartokite tą pačią užsakymo užklausą arba grįžkite į krepšelį.',
+    'start-payment': 'Nepavyko pradėti mokėjimo. Mokėjimo bandymas gali jau egzistuoti. Prieš tęsdami atnaujinkite užsakymą.',
+    confirm: 'Mokėjimo patvirtinimo rezultatas nežinomas. Prieš kartodami tą patį mokėjimą, atnaujinkite užsakymą. Nepradėkite naujo mokėjimo.',
+    'load-order': 'Nepavyko įkelti užsakymo. Atnaujinkite užsakymą, kad matytumėte mokėjimo būseną.',
+    'load-keys': 'Mokėjimas patvirtintas, tačiau nepavyko įkelti skaitmeninių raktų. Bandykite įkelti raktus dar kartą ir nemokėkite iš naujo.',
+    cancel: 'Nepavyko patvirtinti atšaukimo. Prieš atlikdami kitą veiksmą, atnaujinkite užsakymą.',
+    redirect: 'Nepavyko atidaryti „PayPal Sandbox“ patvirtinimo nuorodos. Prieš tęsdami atnaujinkite užsakymą.',
   }[context]
   let detail = ''
   if (error instanceof CheckoutError) {
-    if (error.status === 401) detail = 'Please sign in again.'
-    if (error.status === 403) detail = 'This payment method is unavailable or access is restricted.'
-    if (error.status === 404) detail = 'This order or payment is not available to your account.'
-    if (error.status === 409) detail = 'Stock or reservation changed. Refresh the order or return to your cart to update availability.'
-    if (error.status === 422) detail = 'Check your cart and quantities, then refresh availability.'
+    if (error.status === 401) detail = 'Prisijunkite dar kartą.'
+    if (error.status === 403) detail = 'Šis mokėjimo būdas nepasiekiamas arba prieiga ribojama.'
+    if (error.status === 404) detail = 'Šis užsakymas arba mokėjimas jūsų paskyrai nepasiekiamas.'
+    if (error.status === 409) detail = 'Pasikeitė likutis arba rezervacija. Atnaujinkite užsakymą arba grįžkite į krepšelį ir patikrinkite turimą kiekį.'
+    if (error.status === 422) detail = 'Patikrinkite krepšelį ir prekių kiekius, tada atnaujinkite likučius.'
   }
   return `${message}${detail ? ` ${detail}` : ''}`
 }

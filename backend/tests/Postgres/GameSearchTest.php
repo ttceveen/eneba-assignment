@@ -3,8 +3,11 @@
 namespace Tests\Postgres;
 
 use App\Models\Game;
+use App\Models\Offer;
+use App\Models\Seller;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -59,9 +62,9 @@ class GameSearchTest extends TestCase
         return Game::create(['name' => $name, 'location' => ['GLOBAL'], 'img' => null, 'is_active' => $active]);
     }
 
-    private function search(string $query, int $page = 1, bool $preview = false): array
+    private function search(string $query, int $page = 1, bool $preview = false, array $filters = []): array
     {
-        $request = Request::create('/api/games/search?'.http_build_query(['q' => $query, 'page' => $page, 'preview' => (int) $preview]));
+        $request = Request::create('/api/games/search?'.http_build_query(['q' => $query, 'page' => $page, 'preview' => (int) $preview, ...$filters]));
         $request->headers->set('Accept', 'application/json');
         $kernel = self::$app->make(HttpKernel::class);
         $response = $kernel->handle($request);
@@ -70,6 +73,81 @@ class GameSearchTest extends TestCase
         $kernel->terminate($request, $response);
 
         return $payload;
+    }
+
+    public function test_search_keeps_platform_region_and_price_filters(): void
+    {
+        $matching = $this->game('Portal');
+        $wrongPlatform = $this->game('Portal 2');
+        $unrelated = $this->game('Unrelated racing title');
+        $seller = Seller::create(['name' => 'Seller']);
+
+        foreach ([[$matching, 'Steam'], [$wrongPlatform, 'Xbox'], [$unrelated, 'Steam']] as [$game, $platform]) {
+            $game->offers()->create(['seller_id' => $seller->id, 'platform' => $platform, 'price' => 20, 'quantity' => 1]);
+        }
+
+        $filters = ['platform' => 'Steam', 'region' => 'Global', 'min_price' => '20', 'max_price' => '20'];
+        $result = $this->search('portal', filters: $filters);
+        $this->assertSame([$matching->id], array_column($result['data'], 'id'));
+        parse_str(parse_url($result['links']['first'], PHP_URL_QUERY), $params);
+        $this->assertSame($filters, array_intersect_key($params, $filters));
+        $this->assertSame([], $this->search('portal', filters: ['platform' => 'Nintendo'])['data']);
+    }
+
+    public function test_explicit_price_sort_reorders_fuzzy_search_using_all_matching_filters(): void
+    {
+        $exact = $this->game('Portal');
+        $extension = $this->game('Portal Adventures');
+        $wrongRegion = Game::create(['name' => 'Portal Europe', 'location' => ['PL']]);
+        $wrongPlatform = $this->game('Portal Xbox');
+        $wrongPrice = $this->game('Portal Expensive');
+        $seller = Seller::create(['name' => 'Seller']);
+        $other = Seller::create(['name' => 'Other seller']);
+        foreach ([[$exact, 'Steam', 30], [$extension, 'Steam', 20], [$wrongRegion, 'Steam', 15],
+            [$wrongPlatform, 'Xbox', 10], [$wrongPrice, 'Steam', 60]] as [$game, $platform, $price]) {
+            $game->offers()->create(['seller_id' => $seller->id, 'platform' => $platform, 'price' => $price, 'quantity' => 1]);
+        }
+        $exact->offers()->create(['seller_id' => $other->id, 'platform' => 'Steam', 'price' => 5, 'quantity' => 1]);
+
+        $filters = ['platform' => 'Steam', 'region' => 'Global', 'min_price' => '10', 'max_price' => '50'];
+        $this->assertSame([$exact->id, $extension->id], array_column($this->search('portal', filters: $filters)['data'], 'id'));
+        $extension->popularity()->update(['purchase_count' => 2]);
+        $this->assertSame([$extension->id, $exact->id],
+            array_column($this->search('portal', filters: [...$filters, 'sort' => 'popular'])['data'], 'id'));
+        $filters['sort'] = 'price_asc';
+        $result = $this->search('portl', filters: $filters);
+        $this->assertSame([$extension->id, $exact->id], array_column($result['data'], 'id'));
+        $this->assertSame(['20.00', '30.00'], array_column($result['data'], 'min_price'));
+        parse_str(parse_url($result['links']['first'], PHP_URL_QUERY), $params);
+        $this->assertSame(['q' => 'portl', ...$filters], array_diff_key($params, ['page' => true]));
+    }
+
+    public function test_platform_migration_preserves_offers_and_enforces_enum_and_not_null(): void
+    {
+        $migration = require database_path('migrations/2026_11_18_000001_add_platform_to_offers.php');
+        $migration->down();
+        $seller = Seller::create(['name' => 'Legacy seller']);
+        for ($i = 0; $i < 8; $i++) {
+            $game = $this->game('Legacy game '.$i);
+            $game->offers()->create(['seller_id' => $seller->id, 'price' => $i + 10, 'quantity' => 1]);
+        }
+        $snapshot = fn () => DB::table('offers')->orderBy('id')->get()
+            ->map(fn ($offer) => array_diff_key((array) $offer, ['platform' => true]))->all();
+        $before = $snapshot();
+
+        $migration->up();
+
+        $this->assertSame($before, $snapshot());
+        $this->assertSame(0, DB::table('offers')->whereNull('platform')->count());
+        $this->assertEqualsCanonicalizing(Offer::PLATFORMS, DB::table('offers')->distinct()->pluck('platform')->all());
+        foreach (['22P02' => 'Unsupported', '23502' => null] as $code => $value) {
+            try {
+                DB::transaction(fn () => DB::table('offers')->where('id', $before[0]['id'])->update(['platform' => $value]));
+                $this->fail('PostgreSQL accepted an invalid platform.');
+            } catch (QueryException $exception) {
+                $this->assertSame((string) $code, $exception->getCode());
+            }
+        }
     }
 
     public function test_exact_prefix_substring_and_typo_rank_in_order(): void

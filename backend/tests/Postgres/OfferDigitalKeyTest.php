@@ -62,6 +62,7 @@ class OfferDigitalKeyTest extends TestCase
     private function offer(): Offer
     {
         return Offer::create([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Seller fixture'])->id,
             'game_id' => Game::create(['name' => 'Game fixture', 'location' => ['GLOBAL']])->id,
             'price' => '12.50', 'quantity' => 4,
@@ -125,8 +126,8 @@ class OfferDigitalKeyTest extends TestCase
     {
         $offers = DB::select("SELECT column_name, udt_name, is_nullable, numeric_precision, numeric_scale, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'offers' ORDER BY ordinal_position");
         $keys = DB::select("SELECT column_name, udt_name, is_nullable, character_maximum_length, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'digital_keys' ORDER BY ordinal_position");
-        $this->assertSame(['id', 'seller_id', 'game_id', 'price', 'quantity', 'is_active', 'created_at', 'updated_at'], array_column($offers, 'column_name'));
-        $this->assertSame(['int8', 'int8', 'int8', 'numeric', 'int4', 'bool', 'timestamptz', 'timestamptz'], array_column($offers, 'udt_name'));
+        $this->assertSame(['id', 'seller_id', 'game_id', 'price', 'quantity', 'is_active', 'created_at', 'updated_at', 'platform'], array_column($offers, 'column_name'));
+        $this->assertSame(['int8', 'int8', 'int8', 'numeric', 'int4', 'bool', 'timestamptz', 'timestamptz', 'offer_platform'], array_column($offers, 'udt_name'));
         $this->assertSame(['id', 'offer_id', 'key_value', 'status', 'created_at', 'updated_at', 'order_item_id', 'reserved_until', 'key_fingerprint'], array_column($keys, 'column_name'));
         $this->assertSame(['int8', 'int8', 'text', 'varchar', 'timestamptz', 'timestamptz', 'int8', 'timestamptz', 'varchar'], array_column($keys, 'udt_name'));
         $this->assertSame(['NO'], array_values(array_unique(array_column($offers, 'is_nullable'))));
@@ -164,8 +165,8 @@ class OfferDigitalKeyTest extends TestCase
     public function test_uniqueness_foreign_keys_and_inverse_relationships(): void
     {
         $first = $this->offer();
-        $this->rejected(fn () => Offer::create(['seller_id' => $first->seller_id, 'game_id' => $first->game_id, 'price' => '1.00', 'quantity' => 1]), '23505');
-        $second = Offer::create(['seller_id' => Seller::create(['name' => 'Other seller'])->id, 'game_id' => $first->game_id, 'price' => '0.00', 'quantity' => 0]);
+        $this->rejected(fn () => Offer::create(['platform' => 'Steam', 'seller_id' => $first->seller_id, 'game_id' => $first->game_id, 'price' => '1.00', 'quantity' => 1]), '23505');
+        $second = Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Other seller'])->id, 'game_id' => $first->game_id, 'price' => '0.00', 'quantity' => 0]);
         $this->assertSame(2, $first->game->offers()->count());
         $this->assertTrue($first->seller->offers->sole()->is($first));
         $this->assertSame('12.50', $first->fresh()->price);
@@ -213,6 +214,7 @@ class OfferDigitalKeyTest extends TestCase
     {
         $offer = $this->offer();
         $id = DB::table('offers')->insertGetId([
+            'platform' => 'Steam',
             'seller_id' => Seller::create(['name' => 'Default fixture'])->id, 'game_id' => $offer->game_id,
             'price' => '0.00', 'quantity' => 0, 'created_at' => now(), 'updated_at' => now(),
         ]);

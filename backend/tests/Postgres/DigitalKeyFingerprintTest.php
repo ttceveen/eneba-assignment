@@ -60,7 +60,7 @@ class DigitalKeyFingerprintTest extends TestCase
 
     private function offer(): Offer
     {
-        return Offer::create(['seller_id' => Seller::create(['name' => 'Fingerprint fixture'])->id,
+        return Offer::create(['platform' => 'Steam', 'seller_id' => Seller::create(['name' => 'Fingerprint fixture'])->id,
             'game_id' => Game::create(['name' => 'Fingerprint fixture', 'location' => ['GLOBAL']])->id,
             'price' => '1.00', 'quantity' => 3]);
     }

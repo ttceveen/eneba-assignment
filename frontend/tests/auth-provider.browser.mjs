@@ -55,6 +55,7 @@ async function setup(t, authorized = true) {
     else if (path.endsWith('/logout')) { api.logoutCalls++; await api.logout(route) }
     else if (path.endsWith('/login') || path.endsWith('/register')) await json(route, path.endsWith('/register') ? 201 : 200, { data: user, token, token_type: 'Bearer' })
     else if (path.endsWith('/games')) await json(route, 200, { data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 }, links: { first: '', last: '', prev: null, next: null } })
+    else if (path === '/api/promotions') await json(route, 200, { data: [] })
     else throw new Error(`Unexpected API path in auth-only test: ${path}`)
   })
   t.after(async () => {
@@ -63,11 +64,11 @@ async function setup(t, authorized = true) {
     await context.close()
   })
   await page.goto(base + '/cart')
-  await page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   if (authorized) {
     await page.evaluate(({ key, token }) => sessionStorage.setItem(key, token), { key, token })
     await page.reload()
-    await page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
   }
   function holdMe(next = successMe) {
     const held = heldResponse(); pending.push(held)
@@ -80,17 +81,17 @@ async function setup(t, authorized = true) {
     return held
   }
   async function enterOrders() {
-    await page.getByRole('link', { name: 'Order history', exact: true }).click()
+    await page.getByRole('link', { name: 'Užsakymų istorija', exact: true }).click()
   }
   async function privateReady() {
-    await page.getByRole('heading', { name: 'Order history', exact: true }).waitFor()
-    assert.equal(await page.getByText('Checking your account...', { exact: true }).count(), 0)
+    await page.getByRole('heading', { name: 'Užsakymų istorija', exact: true }).waitFor()
+    assert.equal(await page.getByText('Tikrinama paskyra…', { exact: true }).count(), 0)
   }
   async function guest() {
     await page.waitForURL('**/login?redirect=*')
     assert.equal(await page.evaluate((key) => sessionStorage.getItem(key), key), null)
-    assert.equal(await page.getByRole('heading', { name: 'Order history', exact: true }).count(), 0)
-    assert.equal(await page.getByText('Checking your account...', { exact: true }).count(), 0)
+    assert.equal(await page.getByRole('heading', { name: 'Užsakymų istorija', exact: true }).count(), 0)
+    assert.equal(await page.getByText('Tikrinama paskyra…', { exact: true }).count(), 0)
   }
   return { page, api, holdMe, holdLogout, enterOrders, privateReady, guest }
 }
@@ -100,8 +101,8 @@ test('A: failed logout then old me success recovers with one fresh check', async
   const before = f.api.meCalls
   const old = f.holdMe(); f.api.logout = failureLogout
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor()
   old.release()
   await f.privateReady()
   assert.equal(await f.page.evaluate((key) => sessionStorage.getItem(key), key), token)
@@ -113,7 +114,7 @@ test('B: successful logout ignores a later successful old me', async (t) => {
   const f = await setup(t)
   const old = f.holdMe()
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
   await f.guest()
   old.release(); await pause(120)
   await f.guest()
@@ -125,10 +126,10 @@ test('C: old me finishes before failed logout, recovery still converges', async 
   const before = f.api.meCalls
   const old = f.holdMe(); const out = f.holdLogout()
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click(); await out.started
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click(); await out.started
   old.release(); await old.completed
   out.release(503, { message: 'Temporary logout failure.' })
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor()
   await f.privateReady()
   assert.equal(f.api.meCalls - before, 2)
 })
@@ -138,15 +139,15 @@ test('D: failed me and failed logout finish with retry UI, without automatic loo
   const before = f.api.meCalls
   const old = f.holdMe(failureMe); f.api.logout = failureLogout
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor()
   old.release(503, { message: 'Temporary account check failure.' })
-  await f.page.getByRole('button', { name: 'Retry account check', exact: true }).waitFor()
-  assert.equal(await f.page.getByText('Checking your account...', { exact: true }).count(), 0)
+  await f.page.getByRole('button', { name: 'Patikrinti paskyrą dar kartą', exact: true }).waitFor()
+  assert.equal(await f.page.getByText('Tikrinama paskyra…', { exact: true }).count(), 0)
   assert.equal(await f.page.evaluate((key) => sessionStorage.getItem(key), key), token)
   await pause(150); assert.equal(f.api.meCalls - before, 2)
   f.api.me = successMe
-  await f.page.getByRole('button', { name: 'Retry account check', exact: true }).click()
+  await f.page.getByRole('button', { name: 'Patikrinti paskyrą dar kartą', exact: true }).click()
   await f.privateReady()
 })
 
@@ -156,10 +157,10 @@ test('E: retry logout succeeds while recovery me is pending; neither old reply r
   t.after(() => recovery.release())
   const old = f.holdMe(recovery.handle); f.api.logout = failureLogout
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor(); await recovery.started
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor(); await recovery.started
   f.api.logout = successLogout
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
   await f.guest()
   old.release(); recovery.release(); await pause(120)
   await f.guest(); assert.equal(f.api.logoutCalls, 2)
@@ -169,11 +170,11 @@ test('F: route changes during failed logout recover public and protected routes'
   const f = await setup(t)
   const old = f.holdMe(); const out = f.holdLogout()
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click(); await out.started
-  await f.page.getByRole('link', { name: /Shopping cart,/ }).click()
-  await f.page.getByRole('heading', { name: 'Your cart is empty', exact: true }).waitFor()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click(); await out.started
+  await f.page.getByRole('link', { name: /Pirkinių krepšelis. Prekių:/ }).click()
+  await f.page.getByRole('heading', { name: 'Jūsų krepšelis tuščias', exact: true }).waitFor()
   out.release(503, { message: 'Temporary logout failure.' })
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor()
   await f.enterOrders(); await f.privateReady()
   old.release(); await pause(120); await f.privateReady()
 })
@@ -182,7 +183,7 @@ test('successful logout also stays logged out when old me finishes before logout
   const f = await setup(t)
   const old = f.holdMe(); const out = f.holdLogout()
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click(); await out.started
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click(); await out.started
   old.release(); await old.completed
   out.release(200, { message: 'Logged out.' })
   await f.guest(); await pause(120); await f.guest()
@@ -193,31 +194,31 @@ test('network failure during logout also triggers one recovery check', async (t)
   const before = f.api.meCalls
   const old = f.holdMe(); f.api.logout = (route) => route.abort('failed')
   await f.enterOrders(); await old.started
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await f.page.getByRole('alert').filter({ hasText: 'Logout failed.' }).waitFor()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await f.page.getByRole('alert').filter({ hasText: 'Nepavyko atsijungti.' }).waitFor()
   old.release(); await f.privateReady()
   assert.equal(f.api.meCalls - before, 2)
 })
 
 test('normal register/login/logout/reload and protected redirect remain intact', async (t) => {
   const f = await setup(t, false)
-  await f.page.getByRole('link', { name: 'Log in', exact: true }).click()
-  await f.page.getByRole('link', { name: 'Create an account', exact: true }).click()
-  await f.page.getByLabel('First name', { exact: true }).fill('Browser')
-  await f.page.getByLabel('Last name', { exact: true }).fill('Fixture')
-  await f.page.getByLabel('Email', { exact: true }).fill(user.email)
-  await f.page.getByLabel('Password', { exact: true }).fill('BrowserFixture123')
-  await f.page.getByRole('button', { name: 'Create account', exact: true }).click()
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
-  await f.page.reload(); await f.page.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+  await f.page.getByRole('link', { name: 'Prisijungti', exact: true }).click()
+  await f.page.getByRole('link', { name: 'Sukurti paskyrą', exact: true }).click()
+  await f.page.getByLabel('Vardas', { exact: true }).fill('Browser')
+  await f.page.getByLabel('Pavardė', { exact: true }).fill('Fixture')
+  await f.page.getByLabel('El. paštas', { exact: true }).fill(user.email)
+  await f.page.getByLabel('Slaptažodis', { exact: true }).fill('BrowserFixture123')
+  await f.page.getByRole('button', { name: 'Sukurti paskyrą', exact: true }).click()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
+  await f.page.reload(); await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).waitFor()
   assert.equal(await f.page.evaluate((key) => sessionStorage.getItem(key), key), token)
-  await f.page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await f.page.getByRole('link', { name: 'Log in', exact: true }).waitFor()
+  await f.page.getByRole('button', { name: 'Atsijungti', exact: true }).click()
+  await f.page.getByRole('link', { name: 'Prisijungti', exact: true }).waitFor()
   assert.equal(await f.page.evaluate((key) => sessionStorage.getItem(key), key), null)
   await f.page.goto(base + '/orders')
   await f.page.waitForURL('**/login?redirect=*')
-  await f.page.getByLabel('Email', { exact: true }).fill(user.email)
-  await f.page.getByLabel('Password', { exact: true }).fill('BrowserFixture123')
-  await f.page.getByRole('button', { name: 'Log in', exact: true }).click()
+  await f.page.getByLabel('El. paštas', { exact: true }).fill(user.email)
+  await f.page.getByLabel('Slaptažodis', { exact: true }).fill('BrowserFixture123')
+  await f.page.getByRole('button', { name: 'Prisijungti', exact: true }).click()
   await f.privateReady()
 })

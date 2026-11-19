@@ -6,7 +6,7 @@ import test from 'node:test'
 // Use Node's native runner without adding a test framework or changing Vite config.
 const source = (await readFile(new URL('../src/api/games.ts', import.meta.url), 'utf8'))
   .replace('import.meta.env.VITE_API_BASE_URL', JSON.stringify('https://api.test/api'))
-const { getGames, getGame, searchGames, getSearchPreview } = await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`)
+const { getGames, getGame, searchGames, getSearchPreview, readPlatformContext } = await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`)
 const game = { id: 1, name: 'Fixture game', location: ['GLOBAL'], img: null }
 const page = (data = [game]) => ({
   data, links: { first: '/games?page=1', last: '/games?page=1', prev: null, next: null },
@@ -150,3 +150,39 @@ for (const value of [null, { ...offer, seller: null }, { ...offer, seller: { id:
     await assert.rejects(getGame('1', signal()), /Invalid game response/)
   })
 }
+
+
+test('platform context normalizes one recognized value and rejects ambiguity', () => {
+  for (const platform of ['Steam', 'Xbox', 'PlayStation', 'Nintendo']) {
+    assert.equal(readPlatformContext('?platform=%20' + platform.toLowerCase() + '%20'), platform)
+  }
+  for (const query of ['', '?platform=', '?platform=Unknown', '?platform=Xbox&platform=Nintendo', '?platform=Xbox&platform=Xbox']) {
+    assert.equal(readPlatformContext(query), undefined)
+  }
+})
+
+test('details return an additive platform and reject invalid offer platform fields', async t => {
+  const offer = { id: 1, seller: { id: 1, name: 'Fixture seller' }, price: '19.99', quantity: 1, platform: 'Nintendo' }
+  const fetch = reply(t, { data: { ...game, offers: [offer] } })
+  assert.deepEqual((await getGame('1', signal())).offers, [offer])
+  fetch.mock.mockImplementation(async () => Response.json({ data: { ...game, offers: [{ ...offer, platform: 'Unknown' }] } }))
+  await assert.rejects(getGame('1', signal()), /Invalid game response/)
+})
+
+test('initial offer picks the cheapest available platform match without changing list order', async () => {
+  const source = await readFile(new URL('../src/pages/GameDetails/offerSelection.ts', import.meta.url), 'utf8')
+  const { initialOffer } = await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`)
+  const offers = [
+    { id: 22, platform: 'Xbox', price: '59.99', quantity: 2 },
+    { id: 24, platform: 'Nintendo', price: '62.49', quantity: 1 },
+    { id: 23, platform: 'Nintendo', price: '61.24', quantity: 1 },
+    { id: 25, platform: 'Nintendo', price: '61.24', quantity: 1 },
+    { id: 26, platform: 'Nintendo', price: '1.00', quantity: 0 },
+  ]
+  assert.equal(initialOffer(offers, 'Nintendo'), offers[2])
+  assert.equal(initialOffer(offers, 'Xbox'), offers[0])
+  assert.equal(initialOffer(offers, 'Steam'), offers[0])
+  assert.equal(initialOffer(offers), offers[0])
+  assert.equal(initialOffer([], 'Nintendo'), undefined)
+  assert.deepEqual(offers.map(offer => offer.id), [22, 24, 23, 25, 26])
+})

@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['seller_id', 'game_id', 'price', 'quantity', 'is_active'])]
+#[Fillable(['seller_id', 'game_id', 'price', 'quantity', 'is_active', 'platform'])]
 class Offer extends Model
 {
+    public const PLATFORMS = ['Steam', 'Xbox', 'PlayStation', 'Nintendo'];
+
     protected $attributes = ['is_active' => true];
 
     protected function casts(): array
